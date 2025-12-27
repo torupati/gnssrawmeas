@@ -120,7 +120,7 @@ def plot_widelane_ambiguity(ax, rnxobs):
     nl_wlen = CLIGHT / (L1_FREQ + L2_FREQ)
     logger.debug(f"wide lane {wl_wlen * 100} cm narrow-lane {nl_wlen * 100} cm")
 
-    fig, axes = plt.subplots(4, 1, figsize=(12, 8), sharex=True)
+    fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(r"Wide-lane Ambiguity $N_{L1} - N_{L2}$")
     axes[0].plot(time, wl_cp - nl_pr / wl_wlen)
     axes[0].set_ylabel(r"$B_{wl}$ [cycle]")
@@ -143,25 +143,26 @@ print(rnxobs)
 
 
 # target satellite and initial observables plot
-satname = "G27"
-fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
+satname_list = ["G01", "G02", "G03", "G07", "G08", "G14", "G17", "G21", "G27", "G30"]
+for satname in satname_list:
+    logger.info(f"{satname}")
+    fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
 
+    fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L1")
+    out_figfile = f"bias_analysis_L1_{satname}_L1.png"
+    plt.savefig(out_figfile)
 
-fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L1")
-out_figfile = f"bias_analysis_L1_{satname}_L1.png"
-plt.savefig(out_figfile)
+    fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L2")
+    out_figfile = f"bias_analysis_L2_{satname}_L2.png"
+    plt.savefig(out_figfile)
 
-fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L2")
-out_figfile = f"bias_analysis_L2_{satname}_L2.png"
-plt.savefig(out_figfile)
+    fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L5")
+    out_figfile = f"bias_analysis_L5_{satname}_L5.png"
+    plt.savefig(out_figfile)
 
-fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L5")
-out_figfile = f"bias_analysis_L5_{satname}_L5.png"
-plt.savefig(out_figfile)
-
-fig, axes = plot_widelane_ambiguity(plt.gca(), rnxobs)
-out_figfile = f"wide_narrow_lane_{satname}_L1_L2.png"
-plt.savefig(out_figfile)
+    fig, axes = plot_widelane_ambiguity(plt.gca(), rnxobs)
+    out_figfile = f"wide_narrow_lane_{satname}_L1_L2.png"
+    plt.savefig(out_figfile)
 
 # Only show interactively when not using headless Agg backend
 if mpl.get_backend() != "Agg":
