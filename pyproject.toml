@@ -1,16 +1,25 @@
-[tool.poetry]
+[project]
 name = "gnssraw"
 version = "0.1.0"
-description = ""
-authors = ["torupa <xpt77@outlook.com>"]
+description = "GNSS RINEX observation plotting and raw measurement analysis"
 readme = "README.md"
-
-[tool.poetry.dependencies]
-python = "^3.8"
-georinex = "^1.16.1"
-matplotlib = "^3.7.1"
-
+requires-python = ">=3.8"
+authors = [
+	{ name = "torupa", email = "xpt77@outlook.com" }
+]
+dependencies = [
+	"georinex>=1.16.1",
+	"matplotlib>=3.7.1"
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+# Optional: uv-specific settings can go here if needed in future
+#[tool.uv]
+## Example: set custom index or enable preview features
+## index-url = "https://pypi.org/simple"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
