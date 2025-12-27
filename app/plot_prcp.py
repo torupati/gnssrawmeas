@@ -13,11 +13,6 @@ import matplotlib.pyplot as plt
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-infile = "./3019148c.23o"
-warnings.simplefilter("ignore", FutureWarning)
-rnxobs = gr.load(infile)
-print(rnxobs)
-
 
 def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
     ax = plt.gca()
@@ -139,6 +134,12 @@ def plot_widelane_ambiguity(ax, rnxobs):
     axes[2].set_xlabel("GPST")
     plt.tight_layout()
     return fig, axes
+
+
+infile = "./3019148c.23o"
+warnings.simplefilter("ignore", FutureWarning)
+rnxobs = gr.load(infile)
+print(rnxobs)
 
 
 # target satellite and initial observables plot
