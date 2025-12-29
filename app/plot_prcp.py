@@ -3,6 +3,7 @@ Plot Pseudorange and carrier phase from RINEX observation file.
 
 """
 
+from pathlib import Path
 import georinex as gr
 import warnings
 from logging import getLogger, basicConfig, INFO
@@ -97,7 +98,44 @@ def plot_pr_cp(ax, rnxobs, freq=""):
     return fig, axes
 
 
-def plot_widelane_ambiguity(ax, rnxobs):
+def plot_ionofree_combination(ax, rnxobs, satname: str):
+    pr_l1 = rnxobs["C1C"].sel(sv=satname)
+    cp_l1 = rnxobs["L1C"].sel(sv=satname)
+    pr_l2 = rnxobs["C2X"].sel(sv=satname)
+    cp_l2 = rnxobs["L2X"].sel(sv=satname)
+    time = rnxobs.time
+    # Iono-free combination
+    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
+    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
+        L1_FREQ**2 - L2_FREQ**2
+    )
+    wlen_if = CLIGHT / (L1_FREQ**2 - L2_FREQ**2) * (L1_FREQ + L2_FREQ)
+
+    fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+    axes[0].set_title("Iono-free Pseudorange and Carrier Phase")
+    axes[0].plot(time, pr_if, label="Pseudorange IF")
+    axes[0].plot(time, cp_if * wlen_if, label="Carrier Phase IF")
+    axes[0].set_ylabel("Pseudorange / Carrier Phase [m]")
+    axes[0].legend()
+
+    axes[1].set_title(r"Carrier Phase - Pseudorange")
+    axes[1].plot(time, cp_if - pr_if)
+    axes[1].set_ylabel("CP - PR [m]")
+
+    axes[2].set_title("Signal Strength")
+    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname), label="S1C")
+    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname), label="S2X")
+    axes[2].set_ylabel("C/N0 [dB-Hz]")
+    axes[2].legend()
+    for ax in axes:
+        ax.grid(True)
+    axes[2].set_xlabel("GPST")
+    axes[2].set_xlim(time[0], time[-1])
+    plt.tight_layout()
+    return fig, axes
+
+
+def plot_ambiguity_single_sat_single_rec(ax, rnxobs, satname: str):
     pr_l1 = rnxobs["C1C"].sel(sv=satname)
     cp_l1 = rnxobs["L1C"].sel(sv=satname)
     pr_l2 = rnxobs["C2X"].sel(sv=satname)
@@ -110,14 +148,28 @@ def plot_widelane_ambiguity(ax, rnxobs):
     nl_pr = (
         L1_FREQ / (L1_FREQ + L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ + L2_FREQ) * pr_l2
     )
+    nl_wlen = CLIGHT / (L1_FREQ + L2_FREQ)
+    amb_wl = wl_cp - nl_pr / wl_wlen
 
     # Narrow-lane (phase): L1 + L2
-    nl_cp = cp_l1 + cp_l2
+    # nl_cp = cp_l1 + cp_l2
     # wide-lane (code): L1 - L2
-    wl_pr = (
-        L1_FREQ / (L1_FREQ - L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ - L2_FREQ) * pr_l2
+    # wl_pr = (
+    #    L1_FREQ / (L1_FREQ - L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ - L2_FREQ) * pr_l2
+    # )
+
+    # Iono-free combination
+    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
+    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
+        L1_FREQ**2 - L2_FREQ**2
     )
-    nl_wlen = CLIGHT / (L1_FREQ + L2_FREQ)
+    amb_n1 = (
+        cp_if - pr_if - (-(L2_FREQ**2)) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2 * amb_wl
+    ) / (
+        (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
+        + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
+    )
+
     logger.debug(f"wide lane {wl_wlen * 100} cm narrow-lane {nl_wlen * 100} cm")
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
@@ -125,13 +177,19 @@ def plot_widelane_ambiguity(ax, rnxobs):
     axes[0].plot(time, wl_cp - nl_pr / wl_wlen)
     axes[0].set_ylabel(r"$B_{wl}$ [cycle]")
 
-    axes[1].set_title(r"Narrow-lane Ambiguity $N_{L1} + N_{L2} + ERROR$")
-    axes[1].plot(time, nl_cp - wl_pr / wl_wlen)
-    axes[1].set_ylabel("NL CP - PR [m]")
+    axes[1].set_title(r"Ambiguity $N_{L1}$")
+    axes[1].plot(time, amb_n1)
+    axes[1].set_ylabel("Ambiguity $N_{L1}$ [cycle]")
 
+    axes[2].set_title("Signal Strength")
+    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname), label="S1C")
+    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname), label="S2X")
+    axes[2].set_ylabel("C/N0 [dB-Hz]")
+    axes[2].legend()
     for ax in axes:
         ax.grid(True)
     axes[2].set_xlabel("GPST")
+    axes[2].set_xlim(time[0], time[-1])
     plt.tight_layout()
     return fig, axes
 
@@ -140,7 +198,9 @@ infile = "./3019148c.23o"
 warnings.simplefilter("ignore", FutureWarning)
 rnxobs = gr.load(infile)
 print(rnxobs)
+output_figdir = "./outfigs/"
 
+Path(output_figdir).mkdir(parents=True, exist_ok=True)
 
 # target satellite and initial observables plot
 satname_list = ["G01", "G02", "G03", "G07", "G08", "G14", "G17", "G21", "G27", "G30"]
@@ -149,21 +209,25 @@ for satname in satname_list:
     fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
 
     fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L1")
-    out_figfile = f"bias_analysis_L1_{satname}_L1.png"
+    out_figfile = Path(output_figdir) / f"bias_analysis_L1_{satname}_L1.png"
     plt.savefig(out_figfile)
 
     fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L2")
-    out_figfile = f"bias_analysis_L2_{satname}_L2.png"
+    out_figfile = Path(output_figdir) / f"bias_analysis_L2_{satname}_L2.png"
     plt.savefig(out_figfile)
 
     fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L5")
-    out_figfile = f"bias_analysis_L5_{satname}_L5.png"
+    out_figfile = Path(output_figdir) / f"bias_analysis_L5_{satname}_L5.png"
     plt.savefig(out_figfile)
 
-    fig, axes = plot_widelane_ambiguity(plt.gca(), rnxobs)
-    out_figfile = f"wide_narrow_lane_{satname}_L1_L2.png"
+    fig, axes = plot_ambiguity_single_sat_single_rec(plt.gca(), rnxobs, satname)
+    out_figfile = Path(output_figdir) / f"wide_narrow_lane_{satname}_L1_L2.png"
     plt.savefig(out_figfile)
 
+    fig, axes = plot_ionofree_combination(plt.gca(), rnxobs, satname)
+    out_figfile = Path(output_figdir) / f"ionofree_combination_{satname}_L1_L2.png"
+    plt.savefig(out_figfile)
+    plt.close("all")
 # Only show interactively when not using headless Agg backend
 if mpl.get_backend() != "Agg":
     plt.show()
