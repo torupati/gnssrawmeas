@@ -55,7 +55,7 @@ wlen_L5 = CLIGHT / L5_FREQ
 print(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
 
 
-def plot_pr_cp(ax, rnxobs, freq=""):
+def plot_pr_cp(rnxobs, satname: str, freq=""):
     if freq == "L1":
         wlen = wlen_L1
         cp = rnxobs["L1C"].sel(sv=satname)
@@ -98,7 +98,7 @@ def plot_pr_cp(ax, rnxobs, freq=""):
     return fig, axes
 
 
-def plot_ionofree_combination(ax, rnxobs, satname: str):
+def plot_ionofree_combination(rnxobs, satname: str):
     pr_l1 = rnxobs["C1C"].sel(sv=satname)
     cp_l1 = rnxobs["L1C"].sel(sv=satname)
     pr_l2 = rnxobs["C2X"].sel(sv=satname)
@@ -135,7 +135,7 @@ def plot_ionofree_combination(ax, rnxobs, satname: str):
     return fig, axes
 
 
-def plot_ambiguity_single_sat_single_rec(ax, rnxobs, satname: str):
+def plot_ambiguity_single_sat_single_rec(rnxobs, satname: str):
     pr_l1 = rnxobs["C1C"].sel(sv=satname)
     cp_l1 = rnxobs["L1C"].sel(sv=satname)
     pr_l2 = rnxobs["C2X"].sel(sv=satname)
@@ -150,6 +150,8 @@ def plot_ambiguity_single_sat_single_rec(ax, rnxobs, satname: str):
     )
     nl_wlen = CLIGHT / (L1_FREQ + L2_FREQ)
     amb_wl = wl_cp - nl_pr / wl_wlen
+    # Use the time-average of the wide-lane ambiguity in downstream computation
+    amb_wl_mean = float(amb_wl.mean().values)
 
     # Narrow-lane (phase): L1 + L2
     # nl_cp = cp_l1 + cp_l2
@@ -164,7 +166,9 @@ def plot_ambiguity_single_sat_single_rec(ax, rnxobs, satname: str):
         L1_FREQ**2 - L2_FREQ**2
     )
     amb_n1 = (
-        cp_if - pr_if - (-(L2_FREQ**2)) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2 * amb_wl
+        cp_if
+        - pr_if
+        - (-(L2_FREQ**2)) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2 * amb_wl_mean
     ) / (
         (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
         + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
@@ -208,23 +212,23 @@ for satname in satname_list:
     logger.info(f"{satname}")
     fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
 
-    fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L1")
+    fig, axes = plot_pr_cp(rnxobs, satname, freq="L1")
     out_figfile = Path(output_figdir) / f"bias_analysis_L1_{satname}_L1.png"
     plt.savefig(out_figfile)
 
-    fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L2")
+    fig, axes = plot_pr_cp(rnxobs, satname, freq="L2")
     out_figfile = Path(output_figdir) / f"bias_analysis_L2_{satname}_L2.png"
     plt.savefig(out_figfile)
 
-    fig, axes = plot_pr_cp(plt.gca(), rnxobs, freq="L5")
+    fig, axes = plot_pr_cp(rnxobs, satname, freq="L5")
     out_figfile = Path(output_figdir) / f"bias_analysis_L5_{satname}_L5.png"
     plt.savefig(out_figfile)
 
-    fig, axes = plot_ambiguity_single_sat_single_rec(plt.gca(), rnxobs, satname)
+    fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)
     out_figfile = Path(output_figdir) / f"wide_narrow_lane_{satname}_L1_L2.png"
     plt.savefig(out_figfile)
 
-    fig, axes = plot_ionofree_combination(plt.gca(), rnxobs, satname)
+    fig, axes = plot_ionofree_combination(rnxobs, satname)
     out_figfile = Path(output_figdir) / f"ionofree_combination_{satname}_L1_L2.png"
     plt.savefig(out_figfile)
     plt.close("all")
