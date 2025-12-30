@@ -1,37 +1,36 @@
 """
 Plot Pseudorange and carrier phase from RINEX observation file.
-
 """
 
 from pathlib import Path
 import argparse
-import georinex as gr
 import warnings
 from logging import getLogger, basicConfig, INFO
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
+import georinex as gr
+from georinex import rinexobs
+
+from app.gnss.ambiguity import (
+    get_wineline_ambiguity,
+    get_narrowline_ambiguity,
+)
+from app.gnss.constants import (
+    CLIGHT,
+    L1_FREQ,
+    L2_FREQ,
+    wlen_L1,
+    wlen_L2,
+    wlen_L5,
+)
+
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-CLIGHT = 299792458.0
-L1_FREQ = 1.57542e9
-L2_FREQ = 1.22760e9
-L5_FREQ = 1.17645e9
-wlen_L1 = CLIGHT / L1_FREQ
-wlen_L2 = CLIGHT / L2_FREQ
-wlen_L5 = CLIGHT / L5_FREQ
-logger.info(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
-
 
 def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
-    ax = plt.gca()
-    ax.plot(rnxobs.time, rnxobs["C1C"].sel(sv=satname))
-    ax.set_xlabel("GPS time")
-    ax.set_ylabel("Pseudorange [m]")
-    ax.grid(True)
-
     fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
     axes[0].plot(rnxobs.time, rnxobs["C1C"].sel(sv=satname), label=satname)
     axes[1].plot(rnxobs.time, rnxobs["L1C"].sel(sv=satname), label=satname)
@@ -48,10 +47,9 @@ def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
     axes[3].set_ylabel("S [dB]")
     for a in axes:
         a.grid(True)
-
     axes[3].set_xlabel("GPST")
-    plt.tight_layout()
-    plt.savefig(outfile)
+    fig.tight_layout()
+    fig.savefig(outfile)
     return fig, axes
 
 
@@ -82,7 +80,6 @@ def plot_pr_cp(rnxobs, satname: str, freq=""):
     axes[0].set_title(r"$-N - \frac{2}{\lambda}I$")
     axes[0].plot(rnxobs.time, cp_pr)
     axes[0].set_ylabel("CP-PR")
-
     axes[1].set_title(r"$\frac{1}{\lambda}(I + d/dt (I+T))$")
     axes[1].plot(b2.time, b2)
     axes[1].set_ylabel("DP - CP")
@@ -94,7 +91,8 @@ def plot_pr_cp(rnxobs, satname: str, freq=""):
     for ax in axes:
         ax.grid(True)
     axes[2].set_xlabel("GPST")
-    plt.tight_layout(rect=[0, 0.03, 1, 0.95])
+    fig.suptitle(f"Analysis of Raw Measurement ({satname})")
+    fig.tight_layout(rect=(0, 0.03, 1, 0.95))
     return fig, axes
 
 
@@ -131,54 +129,22 @@ def plot_ionofree_combination(rnxobs, satname: str):
         ax.grid(True)
     axes[2].set_xlabel("GPST")
     axes[2].set_xlim(time[0], time[-1])
-    plt.tight_layout()
+    fig.tight_layout()
     return fig, axes
 
 
-def plot_ambiguity_single_sat_single_rec(rnxobs, satname: str):
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
+def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     time = rnxobs.time
-    # Wide-lane (phase): L1 - L2
-    wl_cp = cp_l1 - cp_l2
-    wl_wlen = CLIGHT / (L1_FREQ - L2_FREQ)
-    # Narrow-lane (code): L1 + L2
-    nl_pr = (
-        L1_FREQ / (L1_FREQ + L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ + L2_FREQ) * pr_l2
-    )
-    nl_wlen = CLIGHT / (L1_FREQ + L2_FREQ)
-    amb_wl = wl_cp - nl_pr / wl_wlen
+    _, amb_wl = get_wineline_ambiguity(rnxobs, satname)
     # Use the time-average of the wide-lane ambiguity in downstream computation
     amb_wl_mean = float(amb_wl.mean().values)
 
-    # Narrow-lane (phase): L1 + L2
-    # nl_cp = cp_l1 + cp_l2
-    # wide-lane (code): L1 - L2
-    # wl_pr = (
-    #    L1_FREQ / (L1_FREQ - L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ - L2_FREQ) * pr_l2
-    # )
-
     # Iono-free combination
-    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
-    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
-        L1_FREQ**2 - L2_FREQ**2
-    )
-    amb_n1 = (
-        cp_if
-        - pr_if
-        - (-(L2_FREQ**2)) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2 * amb_wl_mean
-    ) / (
-        (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
-        + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
-    )
-
-    logger.debug(f"wide lane {wl_wlen * 100} cm narrow-lane {nl_wlen * 100} cm")
+    _, amb_n1 = get_narrowline_ambiguity(rnxobs, satname, amb_wl_mean)
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(r"Wide-lane Ambiguity $N_{L1} - N_{L2}$")
-    axes[0].plot(time, wl_cp - nl_pr / wl_wlen)
+    axes[0].plot(time, amb_wl)
     axes[0].set_ylabel(r"$B_{wl}$ [cycle]")
 
     axes[1].set_title(r"Ambiguity $N_{L1}$")
@@ -194,6 +160,7 @@ def plot_ambiguity_single_sat_single_rec(rnxobs, satname: str):
         ax.grid(True)
     axes[2].set_xlabel("GPST")
     axes[2].set_xlim(time[0], time[-1])
+    fig.suptitle(f"Satellite {satname}", y=1.02)
     plt.tight_layout()
     return fig, axes
 
@@ -211,6 +178,14 @@ def main():
         "--outdir",
         default="./outfigs/",
         help="Directory to write output figure files (default: ./outfigs)",
+    )
+    parser.add_argument(
+        "--constellation",
+        choices=["G", "R", "E", "C", "J", "S", "I", "L"],
+        default="G",
+        help=(
+            "Constellation type to include by prefix (e.g., G for GPS, R for GLONASS, E for Galileo, C for BeiDou, J for QZSS)."
+        ),
     )
     args = parser.parse_args()
 
@@ -234,10 +209,10 @@ def main():
         sv_values = [str(s) for s in rnxobs.coords.get("sv", []).values]
 
     satname_list = sorted(
-        [s for s in sv_values if s.startswith("G")],
+        [s for s in sv_values if s.startswith(args.constellation)],
         key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
     )
-    logger.info(f"Detected GPS satellites: {satname_list}")
+    logger.info(f"Detected {args.constellation} satellites: {satname_list}")
     for satname in satname_list:
         logger.info(f"{satname}")
         fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")

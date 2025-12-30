@@ -5,154 +5,35 @@ Plot Pseudorange and carrier phase from RINEX observation file.
 from pathlib import Path
 import argparse
 import georinex as gr
+from georinex import rinexobs
 import warnings
 from logging import getLogger, basicConfig, INFO
 
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
+from app.gnss.constants import (
+    wlen_L1,
+    wlen_L2,
+    wlen_L5,
+    wl_wlen,
+    nl_wlen,
+    iono_wlen,
+)
+from app.gnss.ambiguity import (
+    get_wineline_ambiguity,
+    get_narrowline_ambiguity,
+    get_ionospheric_ambiguity,
+)
 
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
 
-CLIGHT = 299792458.0
-L1_FREQ = 1.57542e9
-L2_FREQ = 1.22760e9
-L5_FREQ = 1.17645e9
-wlen_L1 = CLIGHT / L1_FREQ
-wlen_L2 = CLIGHT / L2_FREQ
-wlen_L5 = CLIGHT / L5_FREQ
 logger.info(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
 
-wl_wlen = CLIGHT / (L1_FREQ - L2_FREQ)
-nl_wlen = CLIGHT / (L1_FREQ + L2_FREQ)
-iono_wlen = (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1 + (L2_FREQ**2) / (
-    L1_FREQ**2 - L2_FREQ**2
-) * wlen_L2
 logger.info(f"wl_wlen: {wl_wlen}, nl_wlen: {nl_wlen} iono_wlen: {iono_wlen}")
 
 
-def get_wineline_ambiguity(rnxobs, satname: str):
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
-    time = rnxobs.time
-    # Wide-lane (phase): L1 - L2
-    wl_cp = cp_l1 - cp_l2
-    wl_wlen = CLIGHT / (L1_FREQ - L2_FREQ)
-    # Narrow-lane (code): L1 + L2
-    nl_pr = (
-        L1_FREQ / (L1_FREQ + L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ + L2_FREQ) * pr_l2
-    )
-    amb_wl = wl_cp - nl_pr / wl_wlen
-    return time, amb_wl
-
-
-def get_narrowline_ambiguity(rnxobs, satname: str, amb_wl_mean: float):
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
-    time = rnxobs.time
-
-    # Iono-free combination
-    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
-    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
-        L1_FREQ**2 - L2_FREQ**2
-    )
-    amb_n1 = (
-        cp_if
-        - pr_if
-        - (-(L2_FREQ**2)) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2 * amb_wl_mean
-    ) / (
-        (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
-        + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
-    )
-    return time, amb_n1
-
-
-def get_ionospheric_ambiguity(rnxobs, satname: str):
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
-    time = rnxobs.time
-
-    # Iono-free combination
-    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
-    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
-        L1_FREQ**2 - L2_FREQ**2
-    )
-    amb_iono = (cp_if - pr_if) / (
-        (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
-        + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
-    )
-    return time, amb_iono
-
-
-def plot_ambiguity_single_sat_single_rec(rnxobs, satname: str):
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
-    time = rnxobs.time
-    # Wide-lane (phase): L1 - L2
-    wl_cp = cp_l1 - cp_l2
-    # Narrow-lane (code): L1 + L2
-    nl_pr = (
-        L1_FREQ / (L1_FREQ + L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ + L2_FREQ) * pr_l2
-    )
-
-    amb_wl = wl_cp - nl_pr / wl_wlen
-    # Use the time-average of the wide-lane ambiguity in downstream computation
-    amb_wl_mean = float(amb_wl.mean().values)
-
-    # Narrow-lane (phase): L1 + L2
-    # nl_cp = cp_l1 + cp_l2
-    # wide-lane (code): L1 - L2
-    # wl_pr = (
-    #    L1_FREQ / (L1_FREQ - L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ - L2_FREQ) * pr_l2
-    # )
-
-    # Iono-free combination
-    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
-    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
-        L1_FREQ**2 - L2_FREQ**2
-    )
-    amb_n1 = (
-        cp_if
-        - pr_if
-        - (-(L2_FREQ**2)) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2 * amb_wl_mean
-    ) / (
-        (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
-        + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
-    )
-
-    fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
-    axes[0].set_title(r"Wide-lane Ambiguity $N_{L1} - N_{L2}$")
-    axes[0].plot(time, wl_cp - nl_pr / wl_wlen)
-    axes[0].set_ylabel(r"$B_{wl}$ [cycle]")
-
-    axes[1].set_title(r"Ambiguity $N_{L1}$")
-    axes[1].plot(time, amb_n1)
-    axes[1].set_ylabel("Ambiguity $N_{L1}$ [cycle]")
-
-    axes[2].set_title("Signal Strength")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname), label="S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname), label="S2X")
-    axes[2].set_ylabel("C/N0 [dB-Hz]")
-    axes[2].legend()
-    for ax in axes:
-        ax.grid(True)
-    axes[2].set_xlabel("GPST")
-    axes[2].set_xlim(time[0], time[-1])
-    fig.suptitle(f"Satellite {satname}", y=1.02)
-    plt.tight_layout()
-    return fig, axes
-
-
-def plot_ambiguity_diff(rnxobs, satname1: str, satname2: str):
+def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     time = rnxobs.time
 
     # Wide-lane combination
@@ -189,7 +70,20 @@ def plot_ambiguity_diff(rnxobs, satname1: str, satname2: str):
     return fig, axes
 
 
-def plot_ambiguity_diff2(rnxobs1, rnxobs2, satname1: str, satname2: str):
+def plot_ambiguity_diff2(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+):
+    """Plot ambiguity difference between two receivers and two satellites.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+
+    Returns:
+        _type_: _description_
+    """
     # Wide-lane combination
     _, amb_sat1_rec1_wl = get_wineline_ambiguity(rnxobs1, satname1)
     _, amb_sat2_rec1_wl = get_wineline_ambiguity(rnxobs1, satname2)
@@ -283,6 +177,14 @@ def main():
         default="./outfigs/",
         help="Directory to write output figure files (default: ./outfigs)",
     )
+    parser.add_argument(
+        "--constellation",
+        choices=["G", "R", "E", "C", "J", "S", "I", "L"],
+        default="G",
+        help=(
+            "Constellation type to include by prefix (e.g., G for GPS, R for GLONASS, E for Galileo, C for BeiDou, J for QZSS)."
+        ),
+    )
     args = parser.parse_args()
 
     infile1 = Path(args.infile1)
@@ -290,16 +192,16 @@ def main():
         raise FileNotFoundError(f"RINEX observation file not found: {infile1}")
 
     warnings.simplefilter("ignore", FutureWarning)
-    rnxobs1 = gr.load(str(infile1))
-    print(rnxobs1)
+    rnxobs1: rinexobs = gr.load(str(infile1))
+    logger.debug(f"rnxobs1: {rnxobs1}")
 
     infile2 = Path(args.infile2)
     if not infile2.is_file():
         raise FileNotFoundError(f"RINEX observation file not found: {infile2}")
 
     warnings.simplefilter("ignore", FutureWarning)
-    rnxobs2 = gr.load(str(infile2))
-    print(rnxobs2)
+    rnxobs2: rinexobs = gr.load(str(infile2))
+    logger.debug(f"rnxobs2: {rnxobs2}")
 
     output_figdir = Path(args.outdir)
     output_figdir.mkdir(parents=True, exist_ok=True)
@@ -312,15 +214,18 @@ def main():
     try:
         sv_values = [str(s) for s in rnxobs1.sv.values + rnxobs2.sv.values]
         sv_values = list(set(sv_values))
-    except Exception:
+    except ValueError:
         # Fallback in case .sv isn't a standard coordinate for some reason
         sv_values = [str(s) for s in rnxobs1.coords.get("sv", []).values]
 
+    constelation_type = args.constellation
     satname_list = sorted(
-        [s for s in sv_values if s.startswith("G")],
+        [s for s in sv_values if s.startswith(constelation_type)],
         key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
     )
-    logger.info(f"Detected GPS satellites: {satname_list}")
+    if not satname_list:
+        raise ValueError("No GPS satellites found in the provided RINEX files.")
+    logger.info(f"Detected satellites ({constelation_type}): {satname_list}")
     satname_pari_list = [
         ("G10", "G12"),
         ("G12", "G23"),
@@ -329,8 +234,23 @@ def main():
         ("G24", "G25"),
         ("G25", "G23"),
     ]
+    # satname_pari_list = [("J02", "J03"), ("J03", "J07"), ("J07", "J02")]  # QZSS
 
     for satname1, satname2 in satname_pari_list:
+        logger.info(f"Processing satellite pair: {satname1}, {satname2}")
+        if satname1 not in [str(s) for s in rnxobs1.sv.values]:
+            logger.warning(f"Satellite {satname1} not found in infile1. Skipping.")
+            continue
+        if satname2 not in [str(s) for s in rnxobs1.sv.values]:
+            logger.warning(f"Satellite {satname2} not found in infile1. Skipping.")
+            continue
+        if satname1 not in [str(s) for s in rnxobs2.sv.values]:
+            logger.warning(f"Satellite {satname1} not found in infile2. Skipping.")
+            continue
+        if satname2 not in [str(s) for s in rnxobs2.sv.values]:
+            logger.warning(f"Satellite {satname2} not found in infile2. Skipping.")
+            continue
+
         fig, axes = plot_ambiguity_diff(rnxobs1, satname1, satname2)
         out_figfile = (
             output_figdir
@@ -338,7 +258,7 @@ def main():
             / f"ambiguity_diff_rec1_{satname1}_{satname2}_L1_L2.png"
         )
         fig.suptitle(f"Satellite Single Difference {satname1} vs {satname2}")
-        fig.tight_layout(rect=[0, 0.03, 1, 0.95])
+        fig.tight_layout(rect=(0, 0.03, 1, 0.95))
         fig.savefig(out_figfile)
         logger.info(f"{out_figfile}")
 
@@ -362,25 +282,10 @@ def main():
         fig.savefig(out_figfile)
         logger.info(f"{out_figfile}")
 
-    for satname in satname_list:
-        logger.info(f"{satname}")
-
-        fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs1, satname)
-        out_figfile = (
-            output_figdir / "single" / f"wide_narrow_lane_1_{satname}_L1_L2.png"
-        )
-        fig.savefig(out_figfile)
-
-        fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs2, satname)
-        out_figfile = (
-            output_figdir / "single" / f"wide_narrow_lane_2_{satname}_L1_L2.png"
-        )
-        fig.savefig(out_figfile)
-        plt.close("all")
-
     # Only show interactively when not using headless Agg backend
-    if mpl.get_backend() != "Agg":
-        plt.show()
+    # if mpl.get_backend() != "Agg":
+    #    plt.show()
+    plt.close("all")
 
 
 if __name__ == "__main__":
