@@ -4,6 +4,7 @@ Plot Pseudorange and carrier phase from RINEX observation file.
 """
 
 from pathlib import Path
+import argparse
 import georinex as gr
 import warnings
 from logging import getLogger, basicConfig, INFO
@@ -13,6 +14,15 @@ import matplotlib.pyplot as plt
 
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
+
+CLIGHT = 299792458.0
+L1_FREQ = 1.57542e9
+L2_FREQ = 1.22760e9
+L5_FREQ = 1.17645e9
+wlen_L1 = CLIGHT / L1_FREQ
+wlen_L2 = CLIGHT / L2_FREQ
+wlen_L5 = CLIGHT / L5_FREQ
+logger.info(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
 
 
 def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
@@ -43,16 +53,6 @@ def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
     plt.tight_layout()
     plt.savefig(outfile)
     return fig, axes
-
-
-CLIGHT = 299792458.0
-L1_FREQ = 1.57542e9
-L2_FREQ = 1.22760e9
-L5_FREQ = 1.17645e9
-wlen_L1 = CLIGHT / L1_FREQ
-wlen_L2 = CLIGHT / L2_FREQ
-wlen_L5 = CLIGHT / L5_FREQ
-print(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
 
 
 def plot_pr_cp(rnxobs, satname: str, freq=""):
@@ -198,40 +198,75 @@ def plot_ambiguity_single_sat_single_rec(rnxobs, satname: str):
     return fig, axes
 
 
-infile = "./3019148c.23o"
-warnings.simplefilter("ignore", FutureWarning)
-rnxobs = gr.load(infile)
-print(rnxobs)
-output_figdir = "./outfigs/"
+def main():
+    parser = argparse.ArgumentParser(
+        description="Plot pseudorange and carrier phase from a RINEX observation file."
+    )
+    parser.add_argument(
+        "infile",
+        help="Path to RINEX observation file (e.g., *.o, *.##o)",
+    )
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        default="./outfigs/",
+        help="Directory to write output figure files (default: ./outfigs)",
+    )
+    args = parser.parse_args()
 
-Path(output_figdir).mkdir(parents=True, exist_ok=True)
+    infile = Path(args.infile)
+    if not infile.is_file():
+        raise FileNotFoundError(f"RINEX observation file not found: {infile}")
 
-# target satellite and initial observables plot
-satname_list = ["G01", "G02", "G03", "G07", "G08", "G14", "G17", "G21", "G27", "G30"]
-for satname in satname_list:
-    logger.info(f"{satname}")
-    fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
+    warnings.simplefilter("ignore", FutureWarning)
+    rnxobs = gr.load(str(infile))
+    print(rnxobs)
 
-    fig, axes = plot_pr_cp(rnxobs, satname, freq="L1")
-    out_figfile = Path(output_figdir) / f"bias_analysis_L1_{satname}_L1.png"
-    plt.savefig(out_figfile)
+    output_figdir = Path(args.outdir)
+    output_figdir.mkdir(parents=True, exist_ok=True)
 
-    fig, axes = plot_pr_cp(rnxobs, satname, freq="L2")
-    out_figfile = Path(output_figdir) / f"bias_analysis_L2_{satname}_L2.png"
-    plt.savefig(out_figfile)
+    # target satellite and initial observables plot
+    # Derive GPS satellites present in the file (sv starting with 'G')
+    try:
+        sv_values = [str(s) for s in rnxobs.sv.values]
+    except Exception:
+        # Fallback in case .sv isn't a standard coordinate for some reason
+        sv_values = [str(s) for s in rnxobs.coords.get("sv", []).values]
 
-    fig, axes = plot_pr_cp(rnxobs, satname, freq="L5")
-    out_figfile = Path(output_figdir) / f"bias_analysis_L5_{satname}_L5.png"
-    plt.savefig(out_figfile)
+    satname_list = sorted(
+        [s for s in sv_values if s.startswith("G")],
+        key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
+    )
+    logger.info(f"Detected GPS satellites: {satname_list}")
+    for satname in satname_list:
+        logger.info(f"{satname}")
+        fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
 
-    fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)
-    out_figfile = Path(output_figdir) / f"wide_narrow_lane_{satname}_L1_L2.png"
-    plt.savefig(out_figfile)
+        fig, axes = plot_pr_cp(rnxobs, satname, freq="L1")
+        out_figfile = output_figdir / f"bias_analysis_L1_{satname}_L1.png"
+        plt.savefig(out_figfile)
 
-    fig, axes = plot_ionofree_combination(rnxobs, satname)
-    out_figfile = Path(output_figdir) / f"ionofree_combination_{satname}_L1_L2.png"
-    plt.savefig(out_figfile)
-    plt.close("all")
-# Only show interactively when not using headless Agg backend
-if mpl.get_backend() != "Agg":
-    plt.show()
+        fig, axes = plot_pr_cp(rnxobs, satname, freq="L2")
+        out_figfile = output_figdir / f"bias_analysis_L2_{satname}_L2.png"
+        plt.savefig(out_figfile)
+
+        fig, axes = plot_pr_cp(rnxobs, satname, freq="L5")
+        out_figfile = output_figdir / f"bias_analysis_L5_{satname}_L5.png"
+        plt.savefig(out_figfile)
+
+        fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)
+        out_figfile = output_figdir / f"wide_narrow_lane_{satname}_L1_L2.png"
+        plt.savefig(out_figfile)
+
+        fig, axes = plot_ionofree_combination(rnxobs, satname)
+        out_figfile = output_figdir / f"ionofree_combination_{satname}_L1_L2.png"
+        plt.savefig(out_figfile)
+        plt.close("all")
+
+    # Only show interactively when not using headless Agg backend
+    if mpl.get_backend() != "Agg":
+        plt.show()
+
+
+if __name__ == "__main__":
+    main()
