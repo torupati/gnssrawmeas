@@ -9,7 +9,10 @@ authors = [
 ]
 dependencies = [
 	"georinex>=1.16.1",
-	"matplotlib>=3.7.1"
+	"matplotlib>=3.7.1",
+	"fastapi>=0.115.0",
+	"uvicorn[standard]>=0.29.0",
+	"python-multipart>=0.0.7",
 ]
 
 [build-system]
