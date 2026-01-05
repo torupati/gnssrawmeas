@@ -8,6 +8,7 @@ import georinex as gr
 from georinex import rinexobs
 import warnings
 from logging import getLogger, basicConfig, INFO
+from typing import Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -31,6 +32,127 @@ basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger.info(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
 
 logger.info(f"wl_wlen: {wl_wlen}, nl_wlen: {nl_wlen} iono_wlen: {iono_wlen}")
+
+
+def get_satellites_sorted_by_signal_strength(
+    rnxobs: rinexobs, signal_type: str = "S1C", constellation: Optional[str] = None
+) -> dict:
+    """
+    各エポックごとに信号強度の大きい順に衛星を並べる。
+
+    Args:
+        rnxobs (rinexobs): GNSS observation data
+        signal_type (str): Signal strength indicator (default: "S1C")
+        constellation (str): Constellation type filter (e.g., "G", "J", "E").
+                           None for all constellations.
+
+    Returns:
+        dict: Dictionary with time as keys and list of (satellite, signal_strength)
+              tuples sorted by signal strength (descending order) as values.
+              Example: {
+                  np.datetime64('2023-01-01T00:00:00'): [('G01', 45.0), ('G02', 43.5), ...],
+                  ...
+              }
+    """
+    # 信号強度データを取得
+    if signal_type not in rnxobs:
+        raise ValueError(
+            f"Signal type '{signal_type}' not found in RINEX observation data"
+        )
+
+    signal_data = rnxobs[signal_type]
+
+    # 衛星リストを取得
+    sv_list = [str(s) for s in rnxobs.sv.values]
+
+    # コンステレーションでフィルタリング
+    if constellation:
+        sv_list = [sv for sv in sv_list if sv.startswith(constellation)]
+
+    # 各エポックごとに処理
+    sorted_by_epoch = {}
+
+    for time_idx, time_val in enumerate(rnxobs.time.values):
+        satellite_strengths = []
+
+        for sv in sv_list:
+            try:
+                # 信号強度を取得
+                strength = float(signal_data.sel(sv=sv, time=time_val).values)
+
+                # NaNでない場合のみリストに追加
+                if not np.isnan(strength):
+                    satellite_strengths.append((sv, strength))
+            except (KeyError, ValueError):
+                # 衛星データが存在しない場合はスキップ
+                continue
+
+        # 信号強度の降順でソート
+        satellite_strengths.sort(key=lambda x: x[1], reverse=True)
+        sorted_by_epoch[time_val] = satellite_strengths
+
+    return sorted_by_epoch
+
+
+def get_satellite_pairs_by_signal_strength(
+    rnxobs: rinexobs,
+    signal_type: str = "S1C",
+    constellation: Optional[str] = None,
+    top_n: Optional[int] = None,
+) -> list[tuple[str, str]]:
+    """
+    信号強度に基づいて衛星ペアを生成する。
+
+    各エポックで最も信号強度の高い衛星を基準として、他の衛星とのペアを作成する。
+
+    Args:
+        rnxobs (rinexobs): GNSS observation data
+        signal_type (str): Signal strength indicator (default: "S1C")
+        constellation (str): Constellation type filter (e.g., "G", "J", "E")
+        top_n (int): Consider only top N satellites. None for all satellites.
+
+    Returns:
+        list: List of satellite pairs sorted by combined signal strength.
+              Example: [('G01', 'G02'), ('G01', 'G03'), ...]
+    """
+    sorted_by_epoch = get_satellites_sorted_by_signal_strength(
+        rnxobs, signal_type, constellation
+    )
+
+    # 全エポックでの平均信号強度を計算
+    satellite_avg_strength_lists: dict[str, list[float]] = {}
+
+    for time_val, sat_list in sorted_by_epoch.items():
+        for sv, strength in sat_list:
+            if sv not in satellite_avg_strength_lists:
+                satellite_avg_strength_lists[sv] = []
+            satellite_avg_strength_lists[sv].append(strength)
+
+    # 平均を計算
+    satellite_avg_strength: dict[str, float] = {}
+    for sv in satellite_avg_strength_lists:
+        satellite_avg_strength[sv] = float(np.mean(satellite_avg_strength_lists[sv]))
+
+    # 平均信号強度でソート
+    sorted_satellites = sorted(
+        satellite_avg_strength.items(), key=lambda x: x[1], reverse=True
+    )
+
+    if top_n:
+        sorted_satellites = sorted_satellites[:top_n]
+
+    # 衛星ペアを生成（最も強い衛星を基準とする）
+    if len(sorted_satellites) < 2:
+        logger.warning("Not enough satellites to create pairs")
+        return []
+
+    reference_sat = sorted_satellites[0][0]
+    pairs = []
+
+    for sv, _ in sorted_satellites[1:]:
+        pairs.append((reference_sat, sv))
+
+    return pairs
 
 
 def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
@@ -226,14 +348,26 @@ def main():
     if not satname_list:
         raise ValueError("No GPS satellites found in the provided RINEX files.")
     logger.info(f"Detected satellites ({constelation_type}): {satname_list}")
-    satname_pari_list = [
-        ("G10", "G12"),
-        ("G12", "G23"),
-        ("G23", "G10"),
-        ("G23", "G24"),
-        ("G24", "G25"),
-        ("G25", "G23"),
-    ]
+
+    satellite_pair = get_satellite_pairs_by_signal_strength(
+        rnxobs1,
+        signal_type="S1C",
+        constellation=constelation_type,
+        top_n=6,
+    )
+    if not satellite_pair:
+        raise ValueError("No satellite pairs could be formed based on signal strength.")
+    logger.info(f"Satellite pairs selected for analysis: {satellite_pair}")
+    satname_pari_list = satellite_pair
+
+    # satname_pari_list = [
+    #    ("G10", "G12"),
+    #    ("G12", "G23"),
+    #    ("G23", "G10"),
+    #    ("G23", "G24"),
+    #    ("G24", "G25"),
+    #    ("G25", "G23"),
+    # ]
     # satname_pari_list = [("J02", "J03"), ("J03", "J07"), ("J07", "J02")]  # QZSS
 
     for satname1, satname2 in satname_pari_list:
