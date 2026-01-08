@@ -178,7 +178,7 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
     sv_values = [str(s) for s in rnxobs.sv.values]
 
     # Filter GPS satellites only (satellites starting with 'G')
-    gps_satellites = sorted(
+    _satellites = sorted(
         [s for s in sv_values if s.startswith(constellation_prefix)],
         key=lambda x: int(x[1:]) if x[1:].isdigit() else 999,
     )
@@ -192,7 +192,7 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
         # Check GPS satellites observed at this epoch
         visible_sats = []
 
-        for sv in gps_satellites:
+        for sv in _satellites:
             try:
                 # Check S1C signal strength (to verify data exists)
                 if "S1C" in rnxobs:
@@ -218,7 +218,7 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
 
     print("=" * 80)
     print(f"Total epochs: {len(rnxobs.time.values)}")
-    print(f"Total GPS satellites in file: {len(gps_satellites)}")
+    print(f"Total GPS satellites in file: {len(_satellites)}")
     print("=" * 80 + "\n")
 
 
@@ -281,28 +281,41 @@ def main():
     )
     logger.info(f"Detected {args.constellation} satellites: {satname_list}")
     for satname in satname_list:
-        logger.info(f"{satname}")
-        fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
+        logger.info(f"{satname} processing... output figures to {output_figdir}")
+        out_figfile = output_figdir / f"observables_{satname}.png"
+        fig, axes = plot_observables(rnxobs, satname, outfile=out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_pr_cp(rnxobs, satname, freq="L1")
         out_figfile = output_figdir / f"bias_analysis_L1_{satname}_L1.png"
         fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_pr_cp(rnxobs, satname, freq="L2")
         out_figfile = output_figdir / f"bias_analysis_L2_{satname}_L2.png"
         fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_pr_cp(rnxobs, satname, freq="L5")
         out_figfile = output_figdir / f"bias_analysis_L5_{satname}_L5.png"
         fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)
         out_figfile = output_figdir / f"wide_narrow_lane_{satname}_L1_L2.png"
         fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
+
         fig, axes = plot_ionofree_combination(rnxobs, satname)
         out_figfile = output_figdir / f"ionofree_combination_{satname}_L1_L2.png"
         fig.savefig(out_figfile)
-        plt.close("all")
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
     # Only show interactively when not using headless Agg backend
     if mpl.get_backend() != "Agg":
