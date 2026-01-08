@@ -166,24 +166,25 @@ def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     return fig, axes
 
 
-def print_gps_satellites_per_epoch(rnxobs):
+def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str = "G"):
     """
     Print the list of GPS satellites for each epoch (time).
 
     Args:
         rnxobs: RINEX observation data (georinex rinexobs object)
+        constellation_prefix: Prefix for the constellation to filter (default: 'G' for GPS)
     """
     # Get all satellite list
     sv_values = [str(s) for s in rnxobs.sv.values]
 
     # Filter GPS satellites only (satellites starting with 'G')
     gps_satellites = sorted(
-        [s for s in sv_values if s.startswith("G")],
+        [s for s in sv_values if s.startswith(constellation_prefix)],
         key=lambda x: int(x[1:]) if x[1:].isdigit() else 999,
     )
 
     print("\n" + "=" * 80)
-    print("GPS Satellites per Epoch")
+    print(f"{constellation_prefix} Satellites per Epoch")
     print("=" * 80)
 
     # Process each epoch
@@ -258,9 +259,9 @@ def main():
     rnxobs = gr.load(str(infile))
     print(rnxobs)
 
-    # --list-epochs オプションが指定された場合はGPS衛星リストを出力して終了
+    # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
     if args.list_epochs:
-        print_gps_satellites_per_epoch(rnxobs)
+        print_gps_satellites_per_epoch(rnxobs, constellation_prefix=args.constellation)
         return
 
     output_figdir = Path(args.outdir)
