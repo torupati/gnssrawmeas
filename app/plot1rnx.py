@@ -9,6 +9,7 @@ from logging import getLogger, basicConfig, INFO
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numpy as np
 
 import georinex as gr
 from georinex import rinexobs
@@ -165,6 +166,62 @@ def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     return fig, axes
 
 
+def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str = "G"):
+    """
+    Print the list of GPS satellites for each epoch (time).
+
+    Args:
+        rnxobs: RINEX observation data (georinex rinexobs object)
+        constellation_prefix: Prefix for the constellation to filter (default: 'G' for GPS)
+    """
+    # Get all satellite list
+    sv_values = [str(s) for s in rnxobs.sv.values]
+
+    # Filter GPS satellites only (satellites starting with 'G')
+    _satellites = sorted(
+        [s for s in sv_values if s.startswith(constellation_prefix)],
+        key=lambda x: int(x[1:]) if x[1:].isdigit() else 999,
+    )
+
+    print("\n" + "=" * 80)
+    print(f"{constellation_prefix} Satellites per Epoch")
+    print("=" * 80)
+
+    # Process each epoch
+    for time_idx, time_val in enumerate(rnxobs.time.values):
+        # Check GPS satellites observed at this epoch
+        visible_sats = []
+
+        for sv in _satellites:
+            try:
+                # Check S1C signal strength (to verify data exists)
+                if "S1C" in rnxobs:
+                    strength = float(rnxobs["S1C"].sel(sv=sv, time=time_val).values)
+                    if not np.isnan(strength):
+                        visible_sats.append(sv)
+                # If S1C is not available, try other signals
+                elif "C1C" in rnxobs:
+                    data = float(rnxobs["C1C"].sel(sv=sv, time=time_val).values)
+                    if not np.isnan(data):
+                        visible_sats.append(sv)
+            except (KeyError, ValueError):
+                continue
+
+        # Print time and GPS satellite list
+        time_str = str(time_val)
+        if visible_sats:
+            print(
+                f"Epoch {time_idx + 1:4d} | {time_str} | GPS satellites: {', '.join(visible_sats)} (total: {len(visible_sats)})"
+            )
+        else:
+            print(f"Epoch {time_idx + 1:4d} | {time_str} | No GPS satellites")
+
+    print("=" * 80)
+    print(f"Total epochs: {len(rnxobs.time.values)}")
+    print(f"Total GPS satellites in file: {len(_satellites)}")
+    print("=" * 80 + "\n")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plot pseudorange and carrier phase from a RINEX observation file."
@@ -187,6 +244,11 @@ def main():
             "Constellation type to include by prefix (e.g., G for GPS, R for GLONASS, E for Galileo, C for BeiDou, J for QZSS)."
         ),
     )
+    parser.add_argument(
+        "--list-epochs",
+        action="store_true",
+        help="Print GPS satellites visible at each epoch and exit (no plots)",
+    )
     args = parser.parse_args()
 
     infile = Path(args.infile)
@@ -196,6 +258,11 @@ def main():
     warnings.simplefilter("ignore", FutureWarning)
     rnxobs = gr.load(str(infile))
     print(rnxobs)
+
+    # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
+    if args.list_epochs:
+        print_gps_satellites_per_epoch(rnxobs, constellation_prefix=args.constellation)
+        return
 
     output_figdir = Path(args.outdir)
     output_figdir.mkdir(parents=True, exist_ok=True)
@@ -214,29 +281,41 @@ def main():
     )
     logger.info(f"Detected {args.constellation} satellites: {satname_list}")
     for satname in satname_list:
-        logger.info(f"{satname}")
-        fig, axes = plot_observables(rnxobs, satname, outfile="obs.png")
+        logger.info(f"{satname} processing... output figures to {output_figdir}")
+        out_figfile = output_figdir / f"observables_{satname}.png"
+        fig, axes = plot_observables(rnxobs, satname, outfile=out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_pr_cp(rnxobs, satname, freq="L1")
         out_figfile = output_figdir / f"bias_analysis_L1_{satname}_L1.png"
-        plt.savefig(out_figfile)
+        fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_pr_cp(rnxobs, satname, freq="L2")
         out_figfile = output_figdir / f"bias_analysis_L2_{satname}_L2.png"
-        plt.savefig(out_figfile)
+        fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_pr_cp(rnxobs, satname, freq="L5")
         out_figfile = output_figdir / f"bias_analysis_L5_{satname}_L5.png"
-        plt.savefig(out_figfile)
+        fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)
         out_figfile = output_figdir / f"wide_narrow_lane_{satname}_L1_L2.png"
-        plt.savefig(out_figfile)
+        fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
         fig, axes = plot_ionofree_combination(rnxobs, satname)
         out_figfile = output_figdir / f"ionofree_combination_{satname}_L1_L2.png"
-        plt.savefig(out_figfile)
-        plt.close("all")
+        fig.savefig(out_figfile)
+        plt.close(fig)
+        logger.debug(f"Saved {out_figfile}")
 
     # Only show interactively when not using headless Agg backend
     if mpl.get_backend() != "Agg":
