@@ -11,7 +11,7 @@ import warnings
 import georinex as gr
 import matplotlib.pyplot as plt
 
-from app.plot2sig import plot_ambiguity_diff, plot_ambiguity_diff2
+from app.plot2rnx import plot_ambiguity_diff, plot_ambiguity_diff2
 
 
 DEFAULT_OUTDIR = Path("./outfigs")
