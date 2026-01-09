@@ -4,6 +4,7 @@ Plot Pseudorange and carrier phase from RINEX observation file.
 
 from pathlib import Path
 import argparse
+import json
 import georinex as gr
 from georinex import rinexobs
 import warnings
@@ -11,6 +12,7 @@ from logging import getLogger, basicConfig, INFO
 
 import numpy as np
 import matplotlib.pyplot as plt
+import xarray as xr
 from app.gnss.constants import (
     wlen_L1,
     wlen_L2,
@@ -73,6 +75,59 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     return fig, axes
 
 
+def calculate_double_difference_widelane_ambiguity(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+) -> xr.DataArray:
+    """Calculate double difference wide-lane ambiguity between two receivers and two satellites.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+
+    Returns:
+        DataArray: Double difference wide-lane ambiguity
+    """
+    _, amb_sat1_rec1_wl = get_wineline_ambiguity(rnxobs1, satname1)
+    _, amb_sat2_rec1_wl = get_wineline_ambiguity(rnxobs1, satname2)
+    _, amb_sat1_rec2_wl = get_wineline_ambiguity(rnxobs2, satname1)
+    _, amb_sat2_rec2_wl = get_wineline_ambiguity(rnxobs2, satname2)
+    amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
+        amb_sat1_rec2_wl - amb_sat2_rec2_wl
+    )
+    return amb_wl_sat12_rec12
+
+
+def widelane_ambiguity_to_dict(
+    amb_wl: xr.DataArray, satname1: str, satname2: str, time_values: np.ndarray
+) -> dict:
+    """Convert widelane ambiguity data to dictionary format.
+
+    Args:
+        amb_wl (xr.DataArray): Widelane ambiguity data
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+        time_values (np.ndarray): Time values array
+
+    Returns:
+        dict: Dictionary containing satellite pair, time, ambiguity values, and statistics
+    """
+    epochs = [
+        {"time": str(t), "widelane_ambiguity": float(wl)}
+        for t, wl in zip(time_values, amb_wl.values)
+    ]
+    return {
+        "satellite_pair": [satname1, satname2],
+        "epochs": epochs,
+        "statistics": {
+            "mean": float(np.mean(amb_wl)),
+            "std": float(np.std(amb_wl)),
+            "rounded_mean": float(np.round(np.mean(amb_wl))),
+        },
+    }
+
+
 def plot_ambiguity_diff2(
     rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
 ):
@@ -88,12 +143,8 @@ def plot_ambiguity_diff2(
         _type_: _description_
     """
     # Wide-lane combination
-    _, amb_sat1_rec1_wl = get_wineline_ambiguity(rnxobs1, satname1)
-    _, amb_sat2_rec1_wl = get_wineline_ambiguity(rnxobs1, satname2)
-    _, amb_sat1_rec2_wl = get_wineline_ambiguity(rnxobs2, satname1)
-    _, amb_sat2_rec2_wl = get_wineline_ambiguity(rnxobs2, satname2)
-    amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
-        amb_sat1_rec2_wl - amb_sat2_rec2_wl
+    amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
+        rnxobs1, rnxobs2, satname1, satname2
     )
 
     # Iono-free combination
@@ -265,6 +316,18 @@ def main():
         if satname2 not in [str(s) for s in rnxobs2.sv.values]:
             logger.warning(f"Satellite {satname2} not found in infile2. Skipping.")
             continue
+
+        # Calculate and save widelane ambiguity to JSON
+        amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        widelane_data = widelane_ambiguity_to_dict(
+            amb_wl_sat12_rec12, satname1, satname2, rnxobs1.time.values
+        )
+        json_file = output_figdir / "diffdiff" / f"widelane_{satname1}_{satname2}.json"
+        with open(json_file, "w") as f:
+            json.dump(widelane_data, f, indent=2)
+        logger.info(f"Widelane data saved to: {json_file}")
 
         fig, axes = plot_ambiguity_diff(rnxobs1, satname1, satname2)
         out_figfile = (
