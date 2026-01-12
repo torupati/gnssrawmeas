@@ -261,7 +261,6 @@ def calculate_double_difference(
             - dict mapping "sat1-sat2" to widelane ambiguity DataArray
             - dict mapping "sat1-sat2" to ionospheric ambiguity DataArray
     """
-    # Implementation of the function goes here
     all_wl: dict[str, xr.DataArray] = {}
     all_iono: dict[str, xr.DataArray] = {}
     for satname1, satname2 in satellite_pair_list:
