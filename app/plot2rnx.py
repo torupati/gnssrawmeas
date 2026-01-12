@@ -248,20 +248,22 @@ def plot_ambiguity_diff2(
 
 def calculate_double_difference(
     rnxobs1: rinexobs, rnxobs2: rinexobs, satellite_pair_list: list[tuple[str, str]]
-) -> xr.DataArray:
-    """Calculate double difference between two receivers and two satellites.
+) -> tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]:
+    """Calculate double difference between two receivers and multiple satellite pairs.
 
     Args:
         rnxobs1 (rinexobs): GNSS observation data from receiver 1
         rnxobs2 (rinexobs): GNSS observation data from receiver 2
-        satellite_pair (tuple[str, str]): Pair of satellite names
+        satellite_pair_list (list[tuple[str, str]]): List of satellite name pairs
 
     Returns:
-        xr.DataArray: Double difference data array
+        tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]: A tuple containing:
+            - dict mapping "sat1-sat2" to widelane ambiguity DataArray
+            - dict mapping "sat1-sat2" to ionospheric ambiguity DataArray
     """
     # Implementation of the function goes here
-    all_wl = {}
-    all_iono = {}
+    all_wl: dict[str, xr.DataArray] = {}
+    all_iono: dict[str, xr.DataArray] = {}
     for satname1, satname2 in satellite_pair_list:
         widelane_ambiguity = calculate_double_difference_widelane_ambiguity(
             rnxobs1, rnxobs2, satname1, satname2
