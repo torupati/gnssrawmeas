@@ -99,6 +99,29 @@ def calculate_double_difference_widelane_ambiguity(
     return amb_wl_sat12_rec12
 
 
+def calculate_double_difference_ionospheric_ambiguity(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+) -> xr.DataArray:
+    """Calculate double difference ionospheric ambiguity between two receivers and two satellites.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+    Returns:
+        DataArray: Double difference ionospheric ambiguity
+    """
+    _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname1)
+    _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname2)
+    _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname1)
+    _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname2)
+    amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
+        amb_sat1_rec2_iono - amb_sat2_rec2_iono
+    )
+    return amb_iono_sat12_rec12
+
+
 def widelane_ambiguity_to_dict(
     amb_wl: xr.DataArray, satname1: str, satname2: str, time_values: np.ndarray
 ) -> dict:
@@ -213,6 +236,35 @@ def plot_ambiguity_diff2(
     return fig, axes
 
 
+def calculate_double_difference(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satellite_pair_list: list[tuple[str, str]]
+) -> xr.DataArray:
+    """Calculate double difference between two receivers and two satellites.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satellite_pair (tuple[str, str]): Pair of satellite names
+
+    Returns:
+        xr.DataArray: Double difference data array
+    """
+    # Implementation of the function goes here
+    all_wl = {}
+    all_iono = {}
+    for satname1, satname2 in satellite_pair_list:
+        widelane_ambiguity = calculate_double_difference_widelane_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        all_wl[f"{satname1}-{satname2}"] = widelane_ambiguity
+        ionospheric_ambiguity = calculate_double_difference_ionospheric_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        all_iono[f"{satname1}-{satname2}"] = ionospheric_ambiguity
+
+    return all_wl, all_iono
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Plot pseudorange and carrier phase from a RINEX observation file."
@@ -290,19 +342,9 @@ def main():
     if not satellite_pair:
         raise ValueError("No satellite pairs could be formed based on signal strength.")
     logger.info(f"Satellite pairs selected for analysis: {satellite_pair}")
-    satname_pari_list = satellite_pair
+    satname_pair_list = satellite_pair
 
-    # satname_pari_list = [
-    #    ("G10", "G12"),
-    #    ("G12", "G23"),
-    #    ("G23", "G10"),
-    #    ("G23", "G24"),
-    #    ("G24", "G25"),
-    #    ("G25", "G23"),
-    # ]
-    # satname_pari_list = [("J02", "J03"), ("J03", "J07"), ("J07", "J02")]  # QZSS
-
-    for satname1, satname2 in satname_pari_list:
+    for satname1, satname2 in satname_pair_list:
         logger.info(f"Processing satellite pair: {satname1}, {satname2}")
         if satname1 not in [str(s) for s in rnxobs1.sv.values]:
             logger.warning(f"Satellite {satname1} not found in infile1. Skipping.")
