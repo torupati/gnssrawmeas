@@ -136,17 +136,27 @@ def widelane_ambiguity_to_dict(
     Returns:
         dict: Dictionary containing satellite pair, time, ambiguity values, and statistics
     """
+    # Ensure we work with a float array and identify valid (non-NaN) entries
+    amb_values = np.asarray(amb_wl.values, dtype=float)
+    valid_mask = ~np.isnan(amb_values)
+
+    # Only include epochs with valid ambiguity values to avoid NaN in JSON output
     epochs = [
         {"time": str(t), "widelane_ambiguity": float(wl)}
-        for t, wl in zip(time_values, amb_wl.values)
+        for t, wl, is_valid in zip(time_values, amb_values, valid_mask)
+        if is_valid
     ]
+
+    mean_value = np.nanmean(amb_values)
+    std_value = np.nanstd(amb_values)
+
     return {
         "satellite_pair": [satname1, satname2],
         "epochs": epochs,
         "statistics": {
-            "mean": float(np.mean(amb_wl)),
-            "std": float(np.std(amb_wl)),
-            "rounded_mean": float(np.round(np.mean(amb_wl))),
+            "mean": float(mean_value),
+            "std": float(std_value),
+            "rounded_mean": float(np.round(mean_value)),
         },
     }
 
