@@ -4,14 +4,15 @@ Plot Pseudorange and carrier phase from RINEX observation file.
 
 from pathlib import Path
 import argparse
+import json
 import georinex as gr
 from georinex import rinexobs
 import warnings
 from logging import getLogger, basicConfig, INFO
-from typing import Optional
 
 import numpy as np
 import matplotlib.pyplot as plt
+import xarray as xr
 from app.gnss.constants import (
     wlen_L1,
     wlen_L2,
@@ -25,6 +26,9 @@ from app.gnss.ambiguity import (
     get_narrowline_ambiguity,
     get_ionospheric_ambiguity,
 )
+from app.gnss.satellite_signals import (
+    get_satellite_pairs_by_signal_strength,
+)
 
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -32,127 +36,6 @@ basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger.info(f"wlen_L1: {wlen_L1}, wlen_L2: {wlen_L2}, wlen_L5: {wlen_L5}")
 
 logger.info(f"wl_wlen: {wl_wlen}, nl_wlen: {nl_wlen} iono_wlen: {iono_wlen}")
-
-
-def get_satellites_sorted_by_signal_strength(
-    rnxobs: rinexobs, signal_type: str = "S1C", constellation: Optional[str] = None
-) -> dict:
-    """
-    各エポックごとに信号強度の大きい順に衛星を並べる。
-
-    Args:
-        rnxobs (rinexobs): GNSS observation data
-        signal_type (str): Signal strength indicator (default: "S1C")
-        constellation (str): Constellation type filter (e.g., "G", "J", "E").
-                           None for all constellations.
-
-    Returns:
-        dict: Dictionary with time as keys and list of (satellite, signal_strength)
-              tuples sorted by signal strength (descending order) as values.
-              Example: {
-                  np.datetime64('2023-01-01T00:00:00'): [('G01', 45.0), ('G02', 43.5), ...],
-                  ...
-              }
-    """
-    # 信号強度データを取得
-    if signal_type not in rnxobs:
-        raise ValueError(
-            f"Signal type '{signal_type}' not found in RINEX observation data"
-        )
-
-    signal_data = rnxobs[signal_type]
-
-    # 衛星リストを取得
-    sv_list = [str(s) for s in rnxobs.sv.values]
-
-    # コンステレーションでフィルタリング
-    if constellation:
-        sv_list = [sv for sv in sv_list if sv.startswith(constellation)]
-
-    # 各エポックごとに処理
-    sorted_by_epoch = {}
-
-    for time_idx, time_val in enumerate(rnxobs.time.values):
-        satellite_strengths = []
-
-        for sv in sv_list:
-            try:
-                # 信号強度を取得
-                strength = float(signal_data.sel(sv=sv, time=time_val).values)
-
-                # NaNでない場合のみリストに追加
-                if not np.isnan(strength):
-                    satellite_strengths.append((sv, strength))
-            except (KeyError, ValueError):
-                # 衛星データが存在しない場合はスキップ
-                continue
-
-        # 信号強度の降順でソート
-        satellite_strengths.sort(key=lambda x: x[1], reverse=True)
-        sorted_by_epoch[time_val] = satellite_strengths
-
-    return sorted_by_epoch
-
-
-def get_satellite_pairs_by_signal_strength(
-    rnxobs: rinexobs,
-    signal_type: str = "S1C",
-    constellation: Optional[str] = None,
-    top_n: Optional[int] = None,
-) -> list[tuple[str, str]]:
-    """
-    信号強度に基づいて衛星ペアを生成する。
-
-    各エポックで最も信号強度の高い衛星を基準として、他の衛星とのペアを作成する。
-
-    Args:
-        rnxobs (rinexobs): GNSS observation data
-        signal_type (str): Signal strength indicator (default: "S1C")
-        constellation (str): Constellation type filter (e.g., "G", "J", "E")
-        top_n (int): Consider only top N satellites. None for all satellites.
-
-    Returns:
-        list: List of satellite pairs sorted by combined signal strength.
-              Example: [('G01', 'G02'), ('G01', 'G03'), ...]
-    """
-    sorted_by_epoch = get_satellites_sorted_by_signal_strength(
-        rnxobs, signal_type, constellation
-    )
-
-    # 全エポックでの平均信号強度を計算
-    satellite_avg_strength_lists: dict[str, list[float]] = {}
-
-    for time_val, sat_list in sorted_by_epoch.items():
-        for sv, strength in sat_list:
-            if sv not in satellite_avg_strength_lists:
-                satellite_avg_strength_lists[sv] = []
-            satellite_avg_strength_lists[sv].append(strength)
-
-    # 平均を計算
-    satellite_avg_strength: dict[str, float] = {}
-    for sv in satellite_avg_strength_lists:
-        satellite_avg_strength[sv] = float(np.mean(satellite_avg_strength_lists[sv]))
-
-    # 平均信号強度でソート
-    sorted_satellites = sorted(
-        satellite_avg_strength.items(), key=lambda x: x[1], reverse=True
-    )
-
-    if top_n:
-        sorted_satellites = sorted_satellites[:top_n]
-
-    # 衛星ペアを生成（最も強い衛星を基準とする）
-    if len(sorted_satellites) < 2:
-        logger.warning("Not enough satellites to create pairs")
-        return []
-
-    reference_sat = sorted_satellites[0][0]
-    pairs = []
-
-    for sv, _ in sorted_satellites[1:]:
-        pairs.append((reference_sat, sv))
-
-    return pairs
 
 
 def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
@@ -192,6 +75,92 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     return fig, axes
 
 
+def calculate_double_difference_widelane_ambiguity(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+) -> xr.DataArray:
+    """Calculate double difference wide-lane ambiguity between two receivers and two satellites.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+
+    Returns:
+        DataArray: Double difference wide-lane ambiguity
+    """
+    _, amb_sat1_rec1_wl = get_wineline_ambiguity(rnxobs1, satname1)
+    _, amb_sat2_rec1_wl = get_wineline_ambiguity(rnxobs1, satname2)
+    _, amb_sat1_rec2_wl = get_wineline_ambiguity(rnxobs2, satname1)
+    _, amb_sat2_rec2_wl = get_wineline_ambiguity(rnxobs2, satname2)
+    amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
+        amb_sat1_rec2_wl - amb_sat2_rec2_wl
+    )
+    return amb_wl_sat12_rec12
+
+
+def calculate_double_difference_ionospheric_ambiguity(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+) -> xr.DataArray:
+    """Calculate double difference ionospheric ambiguity between two receivers and two satellites.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+    Returns:
+        DataArray: Double difference ionospheric ambiguity
+    """
+    _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname1)
+    _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname2)
+    _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname1)
+    _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname2)
+    amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
+        amb_sat1_rec2_iono - amb_sat2_rec2_iono
+    )
+    return amb_iono_sat12_rec12
+
+
+def widelane_ambiguity_to_dict(
+    amb_wl: xr.DataArray, satname1: str, satname2: str, time_values: np.ndarray
+) -> dict:
+    """Convert widelane ambiguity data to dictionary format.
+
+    Args:
+        amb_wl (xr.DataArray): Widelane ambiguity data
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+        time_values (np.ndarray): Time values array
+
+    Returns:
+        dict: Dictionary containing satellite pair, time, ambiguity values, and statistics
+    """
+    # Ensure we work with a float array and identify valid (non-NaN) entries
+    amb_values = np.asarray(amb_wl.values, dtype=float)
+    valid_mask = ~np.isnan(amb_values)
+
+    # Only include epochs with valid ambiguity values to avoid NaN in JSON output
+    epochs = [
+        {"time": str(t), "widelane_ambiguity": float(wl)}
+        for t, wl, is_valid in zip(time_values, amb_values, valid_mask)
+        if is_valid
+    ]
+
+    mean_value = np.nanmean(amb_values)
+    std_value = np.nanstd(amb_values)
+
+    return {
+        "satellite_pair": [satname1, satname2],
+        "epochs": epochs,
+        "statistics": {
+            "mean": float(mean_value),
+            "std": float(std_value),
+            "rounded_mean": float(np.round(mean_value)),
+        },
+    }
+
+
 def plot_ambiguity_diff2(
     rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
 ):
@@ -207,12 +176,8 @@ def plot_ambiguity_diff2(
         _type_: _description_
     """
     # Wide-lane combination
-    _, amb_sat1_rec1_wl = get_wineline_ambiguity(rnxobs1, satname1)
-    _, amb_sat2_rec1_wl = get_wineline_ambiguity(rnxobs1, satname2)
-    _, amb_sat1_rec2_wl = get_wineline_ambiguity(rnxobs2, satname1)
-    _, amb_sat2_rec2_wl = get_wineline_ambiguity(rnxobs2, satname2)
-    amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
-        amb_sat1_rec2_wl - amb_sat2_rec2_wl
+    amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
+        rnxobs1, rnxobs2, satname1, satname2
     )
 
     # Iono-free combination
@@ -279,6 +244,36 @@ def plot_ambiguity_diff2(
     axes[2].set_xlabel("GPST")
     axes[2].set_xlim(rnxobs1.time[0], rnxobs1.time[-1])
     return fig, axes
+
+
+def calculate_double_difference(
+    rnxobs1: rinexobs, rnxobs2: rinexobs, satellite_pair_list: list[tuple[str, str]]
+) -> tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]:
+    """Calculate double difference between two receivers and multiple satellite pairs.
+
+    Args:
+        rnxobs1 (rinexobs): GNSS observation data from receiver 1
+        rnxobs2 (rinexobs): GNSS observation data from receiver 2
+        satellite_pair_list (list[tuple[str, str]]): List of satellite name pairs
+
+    Returns:
+        tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]: A tuple containing:
+            - dict mapping "sat1-sat2" to widelane ambiguity DataArray
+            - dict mapping "sat1-sat2" to ionospheric ambiguity DataArray
+    """
+    all_wl: dict[str, xr.DataArray] = {}
+    all_iono: dict[str, xr.DataArray] = {}
+    for satname1, satname2 in satellite_pair_list:
+        widelane_ambiguity = calculate_double_difference_widelane_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        all_wl[f"{satname1}-{satname2}"] = widelane_ambiguity
+        ionospheric_ambiguity = calculate_double_difference_ionospheric_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        all_iono[f"{satname1}-{satname2}"] = ionospheric_ambiguity
+
+    return all_wl, all_iono
 
 
 def main():
@@ -358,19 +353,9 @@ def main():
     if not satellite_pair:
         raise ValueError("No satellite pairs could be formed based on signal strength.")
     logger.info(f"Satellite pairs selected for analysis: {satellite_pair}")
-    satname_pari_list = satellite_pair
+    satname_pair_list = satellite_pair
 
-    # satname_pari_list = [
-    #    ("G10", "G12"),
-    #    ("G12", "G23"),
-    #    ("G23", "G10"),
-    #    ("G23", "G24"),
-    #    ("G24", "G25"),
-    #    ("G25", "G23"),
-    # ]
-    # satname_pari_list = [("J02", "J03"), ("J03", "J07"), ("J07", "J02")]  # QZSS
-
-    for satname1, satname2 in satname_pari_list:
+    for satname1, satname2 in satname_pair_list:
         logger.info(f"Processing satellite pair: {satname1}, {satname2}")
         if satname1 not in [str(s) for s in rnxobs1.sv.values]:
             logger.warning(f"Satellite {satname1} not found in infile1. Skipping.")
@@ -384,6 +369,18 @@ def main():
         if satname2 not in [str(s) for s in rnxobs2.sv.values]:
             logger.warning(f"Satellite {satname2} not found in infile2. Skipping.")
             continue
+
+        # Calculate and save widelane ambiguity to JSON
+        amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        widelane_data = widelane_ambiguity_to_dict(
+            amb_wl_sat12_rec12, satname1, satname2, rnxobs1.time.values
+        )
+        json_file = output_figdir / "diffdiff" / f"widelane_{satname1}_{satname2}.json"
+        with open(json_file, "w") as f:
+            json.dump(widelane_data, f, indent=2)
+        logger.info(f"Widelane data saved to: {json_file}")
 
         fig, axes = plot_ambiguity_diff(rnxobs1, satname1, satname2)
         out_figfile = (
