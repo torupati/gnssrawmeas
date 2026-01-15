@@ -26,72 +26,10 @@ from app.gnss.constants import (
     wlen_L2,
     wlen_L5,
 )
+from app.gnss.satellite_signals import get_available_signal_code
 
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
-
-
-def get_available_signal_code(rnxobs, satname: str, freq_prefix: str):
-    """
-    Get available signal code for a given frequency prefix (e.g., 'L5', 'L2', 'L1').
-    Returns the signal code suffix (e.g., 'X', 'I', 'Q', 'C') if available.
-
-    Args:
-        rnxobs: RINEX observation data
-        satname: Satellite name (e.g., 'G01')
-        freq_prefix: Frequency prefix (e.g., 'L5', 'L2', 'L1')
-
-    Returns:
-        Signal code suffix (e.g., 'X', 'I', 'Q') or None if not available
-    """
-    # Check available observation types
-    available_obs = list(rnxobs.data_vars)
-
-    # Find carrier phase observations starting with the frequency prefix
-    carrier_phases = [obs for obs in available_obs if obs.startswith(freq_prefix)]
-
-    if not carrier_phases:
-        return None
-
-    # Priority order for signal codes (prefer I, then X, then Q, then others)
-    priority_codes = ["I", "X", "Q", "C"]
-
-    # First, try priority codes
-    for code in priority_codes:
-        cp_obs = f"{freq_prefix}{code}"
-        if cp_obs in carrier_phases:
-            try:
-                data = rnxobs[cp_obs].sel(sv=satname)
-                if not data.isnull().all():
-                    # Extract frequency number (e.g., '5' from 'L5')
-                    freq_num = freq_prefix[1:]
-
-                    # Check if corresponding pseudorange and doppler exist
-                    pr_obs = f"C{freq_num}{code}"
-                    dp_obs = f"D{freq_num}{code}"
-
-                    if pr_obs in available_obs and dp_obs in available_obs:
-                        return code
-            except (KeyError, ValueError):
-                continue
-
-    # If no priority code works, try any available carrier phase
-    for cp_obs in carrier_phases:
-        try:
-            data = rnxobs[cp_obs].sel(sv=satname)
-            if not data.isnull().all():
-                signal_code = cp_obs[len(freq_prefix) :]
-                freq_num = freq_prefix[1:]
-
-                pr_obs = f"C{freq_num}{signal_code}"
-                dp_obs = f"D{freq_num}{signal_code}"
-
-                if pr_obs in available_obs and dp_obs in available_obs:
-                    return signal_code
-        except (KeyError, ValueError):
-            continue
-
-    return None
 
 
 def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
