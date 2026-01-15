@@ -31,6 +31,69 @@ logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 
+def get_available_signal_code(rnxobs, satname: str, freq_prefix: str):
+    """
+    Get available signal code for a given frequency prefix (e.g., 'L5', 'L2', 'L1').
+    Returns the signal code suffix (e.g., 'X', 'I', 'Q', 'C') if available.
+
+    Args:
+        rnxobs: RINEX observation data
+        satname: Satellite name (e.g., 'G01')
+        freq_prefix: Frequency prefix (e.g., 'L5', 'L2', 'L1')
+
+    Returns:
+        Signal code suffix (e.g., 'X', 'I', 'Q') or None if not available
+    """
+    # Check available observation types
+    available_obs = list(rnxobs.data_vars)
+
+    # Find carrier phase observations starting with the frequency prefix
+    carrier_phases = [obs for obs in available_obs if obs.startswith(freq_prefix)]
+
+    if not carrier_phases:
+        return None
+
+    # Priority order for signal codes (prefer I, then X, then Q, then others)
+    priority_codes = ["I", "X", "Q", "C"]
+
+    # First, try priority codes
+    for code in priority_codes:
+        cp_obs = f"{freq_prefix}{code}"
+        if cp_obs in carrier_phases:
+            try:
+                data = rnxobs[cp_obs].sel(sv=satname)
+                if not data.isnull().all():
+                    # Extract frequency number (e.g., '5' from 'L5')
+                    freq_num = freq_prefix[1:]
+
+                    # Check if corresponding pseudorange and doppler exist
+                    pr_obs = f"C{freq_num}{code}"
+                    dp_obs = f"D{freq_num}{code}"
+
+                    if pr_obs in available_obs and dp_obs in available_obs:
+                        return code
+            except (KeyError, ValueError):
+                continue
+
+    # If no priority code works, try any available carrier phase
+    for cp_obs in carrier_phases:
+        try:
+            data = rnxobs[cp_obs].sel(sv=satname)
+            if not data.isnull().all():
+                signal_code = cp_obs[len(freq_prefix) :]
+                freq_num = freq_prefix[1:]
+
+                pr_obs = f"C{freq_num}{signal_code}"
+                dp_obs = f"D{freq_num}{signal_code}"
+
+                if pr_obs in available_obs and dp_obs in available_obs:
+                    return signal_code
+        except (KeyError, ValueError):
+            continue
+
+    return None
+
+
 def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
     fig, axes = plt.subplots(4, 1, figsize=(10, 8), sharex=True)
     axes[0].plot(rnxobs.time, rnxobs["C1C"].sel(sv=satname), label=satname)
@@ -57,19 +120,43 @@ def plot_observables(rnxobs, satname: str, outfile: str = "obs.png"):
 def plot_pr_cp(rnxobs, satname: str, freq=""):
     if freq == "L1":
         wlen = wlen_L1
-        cp = rnxobs["L1C"].sel(sv=satname)
-        pr = rnxobs["C1C"].sel(sv=satname)
-        dp = rnxobs["D1C"].sel(sv=satname)
+        # Dynamically detect available L1 signal code
+        signal_code = get_available_signal_code(rnxobs, satname, "L1")
+        if signal_code is None:
+            logger.warning(
+                f"No L1 signal available for {satname}, skipping L1 analysis"
+            )
+            return None, None
+        logger.info(f"Using L1{signal_code} signal for {satname}")
+        cp = rnxobs[f"L1{signal_code}"].sel(sv=satname)
+        pr = rnxobs[f"C1{signal_code}"].sel(sv=satname)
+        dp = rnxobs[f"D1{signal_code}"].sel(sv=satname)
     elif freq == "L2":
         wlen = wlen_L2
-        cp = rnxobs["L2X"].sel(sv=satname)
-        pr = rnxobs["C2X"].sel(sv=satname)
-        dp = rnxobs["D2X"].sel(sv=satname)
+        # Dynamically detect available L2 signal code
+        signal_code = get_available_signal_code(rnxobs, satname, "L2")
+        if signal_code is None:
+            logger.warning(
+                f"No L2 signal available for {satname}, skipping L2 analysis"
+            )
+            return None, None
+        logger.info(f"Using L2{signal_code} signal for {satname}")
+        cp = rnxobs[f"L2{signal_code}"].sel(sv=satname)
+        pr = rnxobs[f"C2{signal_code}"].sel(sv=satname)
+        dp = rnxobs[f"D2{signal_code}"].sel(sv=satname)
     elif freq == "L5":
         wlen = wlen_L5
-        cp = rnxobs["L5X"].sel(sv=satname)
-        pr = rnxobs["C5X"].sel(sv=satname)
-        dp = rnxobs["D5X"].sel(sv=satname)
+        # Dynamically detect available L5 signal code
+        signal_code = get_available_signal_code(rnxobs, satname, "L5")
+        if signal_code is None:
+            logger.warning(
+                f"No L5 signal available for {satname}, skipping L5 analysis"
+            )
+            return None, None
+        logger.info(f"Using L5{signal_code} signal for {satname}")
+        cp = rnxobs[f"L5{signal_code}"].sel(sv=satname)
+        pr = rnxobs[f"C5{signal_code}"].sel(sv=satname)
+        dp = rnxobs[f"D5{signal_code}"].sel(sv=satname)
     else:
         raise ValueError("freq must be L1, L2, or L5")
     cp_pr = cp - pr / wlen
@@ -98,10 +185,30 @@ def plot_pr_cp(rnxobs, satname: str, freq=""):
 
 
 def plot_ionofree_combination(rnxobs, satname: str):
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
+    # Dynamically detect available L1 signal code
+    l1_signal_code = get_available_signal_code(rnxobs, satname, "L1")
+    if l1_signal_code is None:
+        logger.warning(
+            f"No L1 signal available for {satname}, cannot compute iono-free combination"
+        )
+        return None, None
+
+    # Dynamically detect available L2 signal code
+    l2_signal_code = get_available_signal_code(rnxobs, satname, "L2")
+    if l2_signal_code is None:
+        logger.warning(
+            f"No L2 signal available for {satname}, cannot compute iono-free combination"
+        )
+        return None, None
+
+    logger.info(
+        f"Computing iono-free combination using L1{l1_signal_code} and L2{l2_signal_code} for {satname}"
+    )
+
+    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
+    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
+    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
+    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
     time = rnxobs.time
     # Iono-free combination
     pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
@@ -122,8 +229,12 @@ def plot_ionofree_combination(rnxobs, satname: str):
     axes[1].set_ylabel("CP - PR [m]")
 
     axes[2].set_title("Signal Strength")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname), label="S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname), label="S2X")
+    axes[2].plot(
+        time, rnxobs[f"S1{l1_signal_code}"].sel(sv=satname), label=f"S1{l1_signal_code}"
+    )
+    axes[2].plot(
+        time, rnxobs[f"S2{l2_signal_code}"].sel(sv=satname), label=f"S2{l2_signal_code}"
+    )
     axes[2].set_ylabel("C/N0 [dB-Hz]")
     axes[2].legend()
     for ax in axes:
@@ -135,13 +246,35 @@ def plot_ionofree_combination(rnxobs, satname: str):
 
 
 def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
+    # Dynamically detect available L1 signal code
+    l1_signal_code = get_available_signal_code(rnxobs, satname, "L1")
+    if l1_signal_code is None:
+        logger.warning(
+            f"No L1 signal available for {satname}, cannot compute ambiguity"
+        )
+        return None, None
+
+    # Dynamically detect available L2 signal code
+    l2_signal_code = get_available_signal_code(rnxobs, satname, "L2")
+    if l2_signal_code is None:
+        logger.warning(
+            f"No L2 signal available for {satname}, cannot compute ambiguity"
+        )
+        return None, None
+
+    logger.info(
+        f"Computing ambiguity using L1{l1_signal_code} and L2{l2_signal_code} for {satname}"
+    )
+
     time = rnxobs.time
-    _, amb_wl = get_wineline_ambiguity(rnxobs, satname)
+    _, amb_wl = get_wineline_ambiguity(rnxobs, satname, l1_signal_code, l2_signal_code)
     # Use the time-average of the wide-lane ambiguity in downstream computation
     amb_wl_mean = float(amb_wl.mean().values)
 
     # Iono-free combination
-    _, amb_n1 = get_narrowline_ambiguity(rnxobs, satname, amb_wl_mean)
+    _, amb_n1 = get_narrowline_ambiguity(
+        rnxobs, satname, amb_wl_mean, l1_signal_code, l2_signal_code
+    )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(r"Wide-lane Ambiguity $N_{L1} - N_{L2}$")
@@ -153,8 +286,12 @@ def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     axes[1].set_ylabel("Ambiguity $N_{L1}$ [cycle]")
 
     axes[2].set_title("Signal Strength")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname), label="S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname), label="S2X")
+    axes[2].plot(
+        time, rnxobs[f"S1{l1_signal_code}"].sel(sv=satname), label=f"S1{l1_signal_code}"
+    )
+    axes[2].plot(
+        time, rnxobs[f"S2{l2_signal_code}"].sel(sv=satname), label=f"S2{l2_signal_code}"
+    )
     axes[2].set_ylabel("C/N0 [dB-Hz]")
     axes[2].legend()
     for ax in axes:
@@ -290,35 +427,60 @@ def main():
         plt.close(fig)
         logger.debug(f"Saved {out_figfile}")
 
-        fig, axes = plot_pr_cp(rnxobs, satname, freq="L1")
-        out_figfile = output_figdir / f"bias_analysis_L1_{satname}_L1.png"
-        fig.savefig(out_figfile)
-        plt.close(fig)
-        logger.debug(f"Saved {out_figfile}")
+        fig, _ = plot_pr_cp(rnxobs, satname, freq="L1")
+        if fig is not None:
+            out_figfile = output_figdir / f"bias_analysis_L1_{satname}_L1.png"
+            fig.savefig(out_figfile)
+            plt.close(fig)
+            logger.debug(f"Saved {out_figfile}")
+        else:
+            logger.warning(
+                f"Skipped L1 analysis for {satname} (no L1 signal available)"
+            )
 
-        fig, axes = plot_pr_cp(rnxobs, satname, freq="L2")
-        out_figfile = output_figdir / f"bias_analysis_L2_{satname}_L2.png"
-        fig.savefig(out_figfile)
-        plt.close(fig)
-        logger.debug(f"Saved {out_figfile}")
+        fig, _ = plot_pr_cp(rnxobs, satname, freq="L2")
+        if fig is not None:
+            out_figfile = output_figdir / f"bias_analysis_L2_{satname}_L2.png"
+            fig.savefig(out_figfile)
+            plt.close(fig)
+            logger.debug(f"Saved {out_figfile}")
+        else:
+            logger.warning(
+                f"Skipped L2 analysis for {satname} (no L2 signal available)"
+            )
 
-        fig, axes = plot_pr_cp(rnxobs, satname, freq="L5")
-        out_figfile = output_figdir / f"bias_analysis_L5_{satname}_L5.png"
-        fig.savefig(out_figfile)
-        plt.close(fig)
-        logger.debug(f"Saved {out_figfile}")
+        fig, _ = plot_pr_cp(rnxobs, satname, freq="L5")
+        if fig is not None:
+            out_figfile = output_figdir / f"bias_analysis_L5_{satname}_L5.png"
+            fig.savefig(out_figfile)
+            plt.close(fig)
+            logger.debug(f"Saved {out_figfile}")
+        else:
+            logger.warning(
+                f"Skipped L5 analysis for {satname} (no L5 signal available)"
+            )
 
         fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)
-        out_figfile = output_figdir / f"wide_narrow_lane_{satname}_L1_L2.png"
-        fig.savefig(out_figfile)
-        plt.close(fig)
-        logger.debug(f"Saved {out_figfile}")
+        if fig is not None:
+            out_figfile = output_figdir / f"wide_narrow_lane_{satname}_L1_L2.png"
+            fig.savefig(out_figfile)
+            plt.close(fig)
+            logger.debug(f"Saved {out_figfile}")
+        else:
+            logger.warning(
+                f"Skipped ambiguity analysis for {satname} (L1 or L2 signal not available)"
+            )
 
         fig, axes = plot_ionofree_combination(rnxobs, satname)
-        out_figfile = output_figdir / f"ionofree_combination_{satname}_L1_L2.png"
-        fig.savefig(out_figfile)
-        plt.close(fig)
-        logger.debug(f"Saved {out_figfile}")
+        if fig is not None:
+            out_figfile = output_figdir / f"ionofree_combination_{satname}_L1_L2.png"
+            fig.savefig(out_figfile)
+            plt.close(fig)
+            logger.debug(f"Saved {out_figfile}")
+        else:
+            logger.warning(
+                f"Skipped iono-free combination for {satname} (L1 or L2 signal not available)"
+            )
 
     # Only show interactively when not using headless Agg backend
     if mpl.get_backend() != "Agg":
