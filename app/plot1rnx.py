@@ -256,8 +256,11 @@ def main():
         raise FileNotFoundError(f"RINEX observation file not found: {infile}")
 
     warnings.simplefilter("ignore", FutureWarning)
+    logger.info(f"Loading RINEX observation file: {infile}")
     rnxobs = gr.load(str(infile))
-    print(rnxobs)
+    logger.info(
+        f"Loaded RINEX observation file with {len(rnxobs.time.values)} epochs and {len(rnxobs.sv.values)} satellites"
+    )
 
     # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
     if args.list_epochs:

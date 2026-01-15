@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 import georinex as gr
 
-from app.plot2sig import (
+from app.gnss.satellite_signals import (
     get_satellites_sorted_by_signal_strength,
     get_satellite_pairs_by_signal_strength,
 )
