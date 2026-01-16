@@ -108,12 +108,6 @@ uv sync --upgrade
 uv python pin 3.11
 ```
 
-## Contributing
-
-We welcome contributions! Please see:
-- [CONTRIBUTING.md](CONTRIBUTING.md) - Development workflow and guidelines
-- [BRANCH_PROTECTION.md](BRANCH_PROTECTION.md) - Branch protection rules and best practices
-
 ## Notes
 
 - The RINEX observation file referenced by the script should be present at `./3019148c.23o` or a path you provide via the CLI.
