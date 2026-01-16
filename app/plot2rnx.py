@@ -28,6 +28,7 @@ from app.gnss.ambiguity import (
 )
 from app.gnss.satellite_signals import (
     get_satellite_pairs_by_signal_strength,
+    get_available_signal_code,
 )
 
 logger = getLogger(__name__)
@@ -42,8 +43,18 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     time = rnxobs.time
 
     # Wide-lane combination
-    _, amb_sat1_wl = get_wineline_ambiguity(rnxobs, satname1)
-    _, amb_sat2_wl = get_wineline_ambiguity(rnxobs, satname2)
+    _obs_l1_code = get_available_signal_code(rnxobs, satname1, "L1")
+    _obs_l2_code = get_available_signal_code(rnxobs, satname1, "L2")
+    if _obs_l1_code is None or _obs_l2_code is None:
+        raise ValueError(
+            f"Cannot find suitable signal codes for L1 or L2 for satellite {satname1}"
+        )
+    _, amb_sat1_wl = get_wineline_ambiguity(
+        rnxobs, satname1, _obs_l1_code, _obs_l2_code
+    )
+    _, amb_sat2_wl = get_wineline_ambiguity(
+        rnxobs, satname2, _obs_l1_code, _obs_l2_code
+    )
     amb_sat1_wl_mean = float(amb_sat1_wl.mean().values)
     amb_sat2_wl_mean = float(amb_sat2_wl.mean().values)
 
@@ -76,7 +87,14 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
 
 
 def calculate_double_difference_widelane_ambiguity(
-    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+    rnxobs1: rinexobs,
+    rnxobs2: rinexobs,
+    satname1: str,
+    satname2: str,
+    obs1_l1_code: str = "C",
+    obs1_l2_code: str = "X",
+    obs2_l1_code: str = "C",
+    obs2_l2_code: str = "X",
 ) -> xr.DataArray:
     """Calculate double difference wide-lane ambiguity between two receivers and two satellites.
 
@@ -89,10 +107,19 @@ def calculate_double_difference_widelane_ambiguity(
     Returns:
         DataArray: Double difference wide-lane ambiguity
     """
-    _, amb_sat1_rec1_wl = get_wineline_ambiguity(rnxobs1, satname1)
-    _, amb_sat2_rec1_wl = get_wineline_ambiguity(rnxobs1, satname2)
-    _, amb_sat1_rec2_wl = get_wineline_ambiguity(rnxobs2, satname1)
-    _, amb_sat2_rec2_wl = get_wineline_ambiguity(rnxobs2, satname2)
+    _, amb_sat1_rec1_wl = get_wineline_ambiguity(
+        rnxobs1, satname1, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat2_rec1_wl = get_wineline_ambiguity(
+        rnxobs1, satname2, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat1_rec2_wl = get_wineline_ambiguity(
+        rnxobs2, satname1, obs2_l1_code, obs2_l2_code
+    )
+    _, amb_sat2_rec2_wl = get_wineline_ambiguity(
+        rnxobs2, satname2, obs2_l1_code, obs2_l2_code
+    )
+    # difference between two receivers and two satellites
     amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
         amb_sat1_rec2_wl - amb_sat2_rec2_wl
     )
@@ -100,7 +127,14 @@ def calculate_double_difference_widelane_ambiguity(
 
 
 def calculate_double_difference_ionospheric_ambiguity(
-    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+    rnxobs1: rinexobs,
+    rnxobs2: rinexobs,
+    satname1: str,
+    satname2: str,
+    obs1_l1_code: str = "C",
+    obs1_l2_code: str = "X",
+    obs2_l1_code: str = "C",
+    obs2_l2_code: str = "X",
 ) -> xr.DataArray:
     """Calculate double difference ionospheric ambiguity between two receivers and two satellites.
 
@@ -112,10 +146,19 @@ def calculate_double_difference_ionospheric_ambiguity(
     Returns:
         DataArray: Double difference ionospheric ambiguity
     """
-    _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname1)
-    _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname2)
-    _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname1)
-    _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname2)
+    _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(
+        rnxobs1, satname1, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(
+        rnxobs1, satname2, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(
+        rnxobs2, satname1, obs2_l1_code, obs2_l2_code
+    )
+    _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(
+        rnxobs2, satname2, obs2_l1_code, obs2_l2_code
+    )
+    # difference between two receivers and two satellites
     amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
         amb_sat1_rec2_iono - amb_sat2_rec2_iono
     )
@@ -162,7 +205,14 @@ def widelane_ambiguity_to_dict(
 
 
 def plot_ambiguity_diff2(
-    rnxobs1: rinexobs, rnxobs2: rinexobs, satname1: str, satname2: str
+    rnxobs1: rinexobs,
+    rnxobs2: rinexobs,
+    satname1: str,
+    satname2: str,
+    obs1_l1_code: str = "C",
+    obs1_l2_code: str = "X",
+    obs2_l1_code: str = "C",
+    obs2_l2_code: str = "X",
 ):
     """Plot ambiguity difference between two receivers and two satellites.
 
@@ -177,21 +227,31 @@ def plot_ambiguity_diff2(
     """
     # Wide-lane combination
     amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
-        rnxobs1, rnxobs2, satname1, satname2
+        rnxobs1,
+        rnxobs2,
+        satname1,
+        satname2,
+        obs1_l1_code,
+        obs1_l2_code,
+        obs2_l1_code,
+        obs2_l2_code,
     )
 
     # Iono-free combination
-    _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname1)
-    _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(rnxobs1, satname2)
-    _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname1)
-    _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(rnxobs2, satname2)
-    amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
-        amb_sat1_rec2_iono - amb_sat2_rec2_iono
+    amb_iono_sat12_rec12 = calculate_double_difference_ionospheric_ambiguity(
+        rnxobs1,
+        rnxobs2,
+        satname1,
+        satname2,
+        obs1_l1_code,
+        obs1_l2_code,
+        obs2_l1_code,
+        obs2_l2_code,
     )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(
-        r"Wide-lane Ambiguity Difference between two receivers $N_{L1} - N_{L2}$"
+        rf"Wide-lane Ambiguity DD {satname1}-{satname2} $N_{{L1}} - N_{{L2}}$"
     )
     axes[0].plot(
         rnxobs1.time,
@@ -210,7 +270,7 @@ def plot_ambiguity_diff2(
     )
     axes[0].set_ylabel(r"$\Delta B_{wl}$ [cycle]")
 
-    axes[1].set_title(r"Iono-free Ambiguity Difference between two receivers $N_{L1}$")
+    axes[1].set_title(rf"Iono-free Ambiguity DD {satname1}-{satname2} $N_{{L1}}$")
     axes[1].plot(
         rnxobs1.time,
         amb_iono_sat12_rec12 / iono_wlen,
