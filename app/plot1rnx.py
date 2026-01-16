@@ -324,6 +324,16 @@ def main():
         action="store_true",
         help="Print GPS satellites visible at each epoch and exit (no plots)",
     )
+    parser.add_argument(
+        "--start-time",
+        default=None,
+        help="Start time for data filtering (e.g., '2023-01-19T00:00:00' or '2023-01-19')",
+    )
+    parser.add_argument(
+        "--end-time",
+        default=None,
+        help="End time for data filtering (e.g., '2023-01-19T23:59:59' or '2023-01-19')",
+    )
     args = parser.parse_args()
 
     infile = Path(args.infile)
@@ -336,6 +346,27 @@ def main():
     logger.info(
         f"Loaded RINEX observation file with {len(rnxobs.time.values)} epochs and {len(rnxobs.sv.values)} satellites"
     )
+
+    # Filter by time range if specified
+    if args.start_time or args.end_time:
+        original_epochs = len(rnxobs.time.values)
+        start_time = np.datetime64(args.start_time) if args.start_time else None
+        end_time = np.datetime64(args.end_time) if args.end_time else None
+
+        if start_time and end_time:
+            rnxobs = rnxobs.sel(time=slice(start_time, end_time))
+            logger.info(f"Filtered data from {start_time} to {end_time}")
+        elif start_time:
+            rnxobs = rnxobs.sel(time=slice(start_time, None))
+            logger.info(f"Filtered data from {start_time} onwards")
+        elif end_time:
+            rnxobs = rnxobs.sel(time=slice(None, end_time))
+            logger.info(f"Filtered data up to {end_time}")
+
+        filtered_epochs = len(rnxobs.time.values)
+        logger.info(
+            f"Epochs after filtering: {filtered_epochs} (removed {original_epochs - filtered_epochs})"
+        )
 
     # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
     if args.list_epochs:
