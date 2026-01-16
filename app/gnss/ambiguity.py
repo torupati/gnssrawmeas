@@ -18,16 +18,25 @@ from .constants import (
 
 
 def get_wineline_ambiguity(
-    rnxobs: xr.Dataset, satname: str
+    rnxobs: xr.Dataset,
+    satname: str,
+    l1_signal_code: str = "C",
+    l2_signal_code: str = "X",
 ) -> Tuple[xr.DataArray, xr.DataArray]:
     """Compute wide-lane ambiguity for a given satellite.
 
     Returns a tuple of (time, ambiguity DataArray).
+
+    Args:
+        rnxobs: RINEX observation dataset
+        satname: Satellite name (e.g., 'G01')
+        l1_signal_code: Signal code for L1 (e.g., 'C', 'I', 'X')
+        l2_signal_code: Signal code for L2 (e.g., 'X', 'W', 'C')
     """
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
+    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
+    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
+    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
+    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
     time = rnxobs.time
 
     wl_wlen = CLIGHT / (L1_FREQ - L2_FREQ)
@@ -40,13 +49,25 @@ def get_wineline_ambiguity(
 
 
 def get_narrowline_ambiguity(
-    rnxobs: xr.Dataset, satname: str, amb_wl_mean: float
+    rnxobs: xr.Dataset,
+    satname: str,
+    amb_wl_mean: float,
+    l1_signal_code: str = "C",
+    l2_signal_code: str = "X",
 ) -> Tuple[xr.DataArray, xr.DataArray]:
-    """Compute narrow-lane ambiguity N1 using iono-free combination and wide-lane mean."""
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
+    """Compute narrow-lane ambiguity N1 using iono-free combination and wide-lane mean.
+
+    Args:
+        rnxobs: RINEX observation dataset
+        satname: Satellite name (e.g., 'G01')
+        amb_wl_mean: Mean wide-lane ambiguity value
+        l1_signal_code: Signal code for L1 (e.g., 'C', 'I', 'X')
+        l2_signal_code: Signal code for L2 (e.g., 'X', 'W', 'C')
+    """
+    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
+    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
+    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
+    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
     time = rnxobs.time
 
     pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
@@ -65,13 +86,23 @@ def get_narrowline_ambiguity(
 
 
 def get_ionospheric_ambiguity(
-    rnxobs: xr.Dataset, satname: str
+    rnxobs: xr.Dataset,
+    satname: str,
+    l1_signal_code: str = "C",
+    l2_signal_code: str = "X",
 ) -> Tuple[xr.DataArray, xr.DataArray]:
-    """Compute iono-free ambiguity using L1/L2 combinations."""
-    pr_l1 = rnxobs["C1C"].sel(sv=satname)
-    cp_l1 = rnxobs["L1C"].sel(sv=satname)
-    pr_l2 = rnxobs["C2X"].sel(sv=satname)
-    cp_l2 = rnxobs["L2X"].sel(sv=satname)
+    """Compute iono-free ambiguity using L1/L2 combinations.
+
+    Args:
+        rnxobs: RINEX observation dataset
+        satname: Satellite name (e.g., 'G01')
+        l1_signal_code: Signal code for L1 (e.g., 'C', 'I', 'X')
+        l2_signal_code: Signal code for L2 (e.g., 'X', 'W', 'C')
+    """
+    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
+    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
+    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
+    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
     time = rnxobs.time
 
     pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
