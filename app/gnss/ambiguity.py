@@ -114,3 +114,121 @@ def get_ionospheric_ambiguity(
         + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
     )
     return time, amb_iono
+
+
+def calculate_double_difference_widelane_ambiguity(
+    rnxobs1: xr.Dataset,
+    rnxobs2: xr.Dataset,
+    satname1: str,
+    satname2: str,
+    obs1_l1_code: str = "C",
+    obs1_l2_code: str = "X",
+    obs2_l1_code: str = "C",
+    obs2_l2_code: str = "X",
+) -> xr.DataArray:
+    """Calculate double difference wide-lane ambiguity between two receivers and two satellites.
+
+    Args:
+        rnxobs1: GNSS observation data from receiver 1
+        rnxobs2: GNSS observation data from receiver 2
+        satname1: Satellite name 1
+        satname2: Satellite name 2
+        obs1_l1_code: Signal code for L1 in receiver 1
+        obs1_l2_code: Signal code for L2 in receiver 1
+        obs2_l1_code: Signal code for L1 in receiver 2
+        obs2_l2_code: Signal code for L2 in receiver 2
+
+    Returns:
+        DataArray: Double difference wide-lane ambiguity
+    """
+    _, amb_sat1_rec1_wl = get_wineline_ambiguity(
+        rnxobs1, satname1, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat2_rec1_wl = get_wineline_ambiguity(
+        rnxobs1, satname2, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat1_rec2_wl = get_wineline_ambiguity(
+        rnxobs2, satname1, obs2_l1_code, obs2_l2_code
+    )
+    _, amb_sat2_rec2_wl = get_wineline_ambiguity(
+        rnxobs2, satname2, obs2_l1_code, obs2_l2_code
+    )
+    # difference between two receivers and two satellites
+    amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
+        amb_sat1_rec2_wl - amb_sat2_rec2_wl
+    )
+    return amb_wl_sat12_rec12
+
+
+def calculate_double_difference_ionospheric_ambiguity(
+    rnxobs1: xr.Dataset,
+    rnxobs2: xr.Dataset,
+    satname1: str,
+    satname2: str,
+    obs1_l1_code: str = "C",
+    obs1_l2_code: str = "X",
+    obs2_l1_code: str = "C",
+    obs2_l2_code: str = "X",
+) -> xr.DataArray:
+    """Calculate double difference ionospheric ambiguity between two receivers and two satellites.
+
+    Args:
+        rnxobs1: GNSS observation data from receiver 1
+        rnxobs2: GNSS observation data from receiver 2
+        satname1: Satellite name 1
+        satname2: Satellite name 2
+        obs1_l1_code: Signal code for L1 in receiver 1
+        obs1_l2_code: Signal code for L2 in receiver 1
+        obs2_l1_code: Signal code for L1 in receiver 2
+        obs2_l2_code: Signal code for L2 in receiver 2
+
+    Returns:
+        DataArray: Double difference ionospheric ambiguity
+    """
+    _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(
+        rnxobs1, satname1, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(
+        rnxobs1, satname2, obs1_l1_code, obs1_l2_code
+    )
+    _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(
+        rnxobs2, satname1, obs2_l1_code, obs2_l2_code
+    )
+    _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(
+        rnxobs2, satname2, obs2_l1_code, obs2_l2_code
+    )
+    # difference between two receivers and two satellites
+    amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
+        amb_sat1_rec2_iono - amb_sat2_rec2_iono
+    )
+    return amb_iono_sat12_rec12
+
+
+def calculate_double_difference(
+    rnxobs1: xr.Dataset, rnxobs2: xr.Dataset, satellite_pair_list: list[tuple[str, str]]
+) -> tuple[dict[str, xr.DataArray], dict[str, xr.DataArray]]:
+    """Calculate double difference between two receivers and multiple satellite pairs.
+
+    Args:
+        rnxobs1: GNSS observation data from receiver 1
+        rnxobs2: GNSS observation data from receiver 2
+        satellite_pair_list: List of satellite name pairs
+
+    Returns:
+        A tuple containing:
+            - dict mapping "sat1-sat2" to widelane ambiguity DataArray
+            - dict mapping "sat1-sat2" to ionospheric ambiguity DataArray
+    """
+    all_wl: dict[str, xr.DataArray] = {}
+    all_iono: dict[str, xr.DataArray] = {}
+    for satname1, satname2 in satellite_pair_list:
+        widelane_ambiguity = calculate_double_difference_widelane_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        all_wl[f"{satname1}-{satname2}"] = widelane_ambiguity
+        ionospheric_ambiguity = calculate_double_difference_ionospheric_ambiguity(
+            rnxobs1, rnxobs2, satname1, satname2
+        )
+        all_iono[f"{satname1}-{satname2}"] = ionospheric_ambiguity
+
+    return all_wl, all_iono
