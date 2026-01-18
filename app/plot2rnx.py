@@ -248,10 +248,10 @@ def main():
     )
     parser.add_argument(
         "--constellation",
-        choices=["G", "R", "E", "C", "J", "S", "I", "L"],
+        choices=["G", "R", "E", "C", "J", "S", "I", "L", "a"],
         default="G",
         help=(
-            "Constellation type to include by prefix (e.g., G for GPS, R for GLONASS, E for Galileo, C for BeiDou, J for QZSS)."
+            "Constellation type to include by prefix (e.g., G for GPS, R for GLONASS, E for Galileo, C for BeiDou, J for QZSS, a for all)."
         ),
     )
     args = parser.parse_args()
@@ -288,12 +288,18 @@ def main():
         sv_values = [str(s) for s in rnxobs1.coords.get("sv", []).values]
 
     constelation_type = args.constellation
-    satname_list = sorted(
-        [s for s in sv_values if s.startswith(constelation_type)],
-        key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
-    )
+    if constelation_type == "a":
+        satname_list = sorted(
+            sv_values,
+            key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
+        )
+    else:
+        satname_list = sorted(
+            [s for s in sv_values if s.startswith(constelation_type)],
+            key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
+        )
     if not satname_list:
-        raise ValueError("No GPS satellites found in the provided RINEX files.")
+        raise ValueError("No satellites found in the provided RINEX files.")
     logger.info(f"Detected satellites ({constelation_type}): {satname_list}")
 
     satellite_pair = get_satellite_pairs_by_signal_strength(
