@@ -41,6 +41,20 @@ logger.info(f"wl_wlen: {wl_wlen}, nl_wlen: {nl_wlen} iono_wlen: {iono_wlen}")
 
 
 def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
+    """Plot ambiguity difference between two satellites.
+    Args:
+        rnxobs (rinexobs): RINEX observation data
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+    Raises:
+        ValueError: If suitable signal codes for L1 or L2 cannot be found
+    Returns:
+        fig, axes: Matplotlib figure and axes objects
+
+    Note:
+        This function calculates and plots the wide-lane and iono-free ambiguities
+        between two satellites, along with their signal strengths. Differences are calculated in the single observation data, so time axes are the same.
+    """
     time = rnxobs.time
 
     # Wide-lane combination
@@ -135,6 +149,7 @@ def plot_ambiguity_diff2(
     obs1_l2_code: str = "X",
     obs2_l1_code: str = "C",
     obs2_l2_code: str = "X",
+    time_synchronize: bool = True,
 ):
     """Plot ambiguity difference between two receivers and two satellites.
 
@@ -157,6 +172,7 @@ def plot_ambiguity_diff2(
         obs1_l2_code,
         obs2_l1_code,
         obs2_l2_code,
+        time_synchronize,
     )
 
     # Iono-free combination
@@ -169,6 +185,7 @@ def plot_ambiguity_diff2(
         obs1_l2_code,
         obs2_l1_code,
         obs2_l2_code,
+        time_synchronize,
     )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
@@ -328,15 +345,41 @@ def main():
             logger.warning(f"Satellite {satname2} not found in infile2. Skipping.")
             continue
 
+        obs1_l1_code = get_available_signal_code(rnxobs1, satname1, "L1")
+        obs1_l2_code = get_available_signal_code(rnxobs1, satname1, "L2")
+        obs2_l1_code = get_available_signal_code(rnxobs2, satname1, "L1")
+        obs2_l2_code = get_available_signal_code(rnxobs2, satname1, "L2")
+        if (
+            obs1_l1_code is None
+            or obs1_l2_code is None
+            or obs2_l1_code is None
+            or obs2_l2_code is None
+        ):
+            logger.warning(
+                "Cannot find suitable signal codes for L1 or L2 for "
+                "satellite %s or %s. Skipping.",
+                satname1,
+                satname2,
+            )
+            continue
+
         # Calculate and save widelane ambiguity to JSON
         amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
-            rnxobs1, rnxobs2, satname1, satname2
+            rnxobs1,
+            rnxobs2,
+            satname1,
+            satname2,
+            obs1_l1_code,
+            obs1_l2_code,
+            obs2_l1_code,
+            obs2_l2_code,
+            True,
         )
         widelane_data = widelane_ambiguity_to_dict(
             amb_wl_sat12_rec12, satname1, satname2, rnxobs1.time.values
         )
         json_file = output_figdir / "diffdiff" / f"widelane_{satname1}_{satname2}.json"
-        with open(json_file, "w") as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(widelane_data, f, indent=2)
         logger.info(f"Widelane data saved to: {json_file}")
 
@@ -361,7 +404,16 @@ def main():
         fig.savefig(out_figfile)
         logger.info(f"{out_figfile}")
 
-        fig, axes = plot_ambiguity_diff2(rnxobs1, rnxobs2, satname1, satname2)
+        fig, axes = plot_ambiguity_diff2(
+            rnxobs1,
+            rnxobs2,
+            satname1,
+            satname2,
+            obs1_l1_code,
+            obs1_l2_code,
+            obs2_l1_code,
+            obs2_l2_code,
+        )
         out_figfile = (
             output_figdir
             / "diffdiff"

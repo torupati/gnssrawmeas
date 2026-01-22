@@ -125,6 +125,7 @@ def calculate_double_difference_widelane_ambiguity(
     obs1_l2_code: str = "X",
     obs2_l1_code: str = "C",
     obs2_l2_code: str = "X",
+    time_synchronize: bool = True,
 ) -> xr.DataArray:
     """Calculate double difference wide-lane ambiguity between two receivers and two satellites.
 
@@ -137,7 +138,7 @@ def calculate_double_difference_widelane_ambiguity(
         obs1_l2_code: Signal code for L2 in receiver 1
         obs2_l1_code: Signal code for L1 in receiver 2
         obs2_l2_code: Signal code for L2 in receiver 2
-
+        time_synchronize: bool = True, Whether to synchronize time between two datasets
     Returns:
         DataArray: Double difference wide-lane ambiguity
     """
@@ -154,6 +155,13 @@ def calculate_double_difference_widelane_ambiguity(
         rnxobs2, satname2, obs2_l1_code, obs2_l2_code
     )
     # difference between two receivers and two satellites
+    if time_synchronize:
+        amb_sat1_rec2_wl = amb_sat1_rec2_wl.sel(
+            time=amb_sat1_rec1_wl.time, method="nearest"
+        )
+        amb_sat2_rec2_wl = amb_sat2_rec2_wl.sel(
+            time=amb_sat2_rec1_wl.time, method="nearest"
+        )
     amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
         amb_sat1_rec2_wl - amb_sat2_rec2_wl
     )
@@ -169,6 +177,7 @@ def calculate_double_difference_ionospheric_ambiguity(
     obs1_l2_code: str = "X",
     obs2_l1_code: str = "C",
     obs2_l2_code: str = "X",
+    time_synchronize: bool = True,
 ) -> xr.DataArray:
     """Calculate double difference ionospheric ambiguity between two receivers and two satellites.
 
@@ -181,7 +190,7 @@ def calculate_double_difference_ionospheric_ambiguity(
         obs1_l2_code: Signal code for L2 in receiver 1
         obs2_l1_code: Signal code for L1 in receiver 2
         obs2_l2_code: Signal code for L2 in receiver 2
-
+        time_synchronize: bool = True, Whether to synchronize time between two datasets
     Returns:
         DataArray: Double difference ionospheric ambiguity
     """
@@ -198,6 +207,13 @@ def calculate_double_difference_ionospheric_ambiguity(
         rnxobs2, satname2, obs2_l1_code, obs2_l2_code
     )
     # difference between two receivers and two satellites
+    if time_synchronize:
+        amb_sat1_rec2_iono = amb_sat1_rec2_iono.sel(
+            time=amb_sat1_rec1_iono.time, method="nearest"
+        )
+        amb_sat2_rec2_iono = amb_sat2_rec2_iono.sel(
+            time=amb_sat2_rec1_iono.time, method="nearest"
+        )
     amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
         amb_sat1_rec2_iono - amb_sat2_rec2_iono
     )
