@@ -106,7 +106,7 @@ def get_satellites_sorted_by_signal_strength(
     sv_list = [str(s) for s in rnxobs.sv.values]
 
     # Filter by constellation
-    if constellation:
+    if constellation and constellation != "a":
         sv_list = [sv for sv in sv_list if sv.startswith(constellation)]
 
     # Process for each epoch
