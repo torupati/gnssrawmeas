@@ -78,7 +78,7 @@ def get_available_signal_code(rnxobs, satname: str, freq_prefix: str):
 
 def get_satellites_sorted_by_signal_strength(
     rnxobs: rinexobs, signal_type: str = "S1C", constellation: Optional[str] = None
-) -> dict:
+) -> dict[np.datetime64, list[tuple[str, float]]]:
     """
     Sort satellites by signal strength for each epoch.
 
@@ -89,7 +89,7 @@ def get_satellites_sorted_by_signal_strength(
                            None for all constellations.
 
     Returns:
-        dict: Dictionary with time as keys and list of (satellite, signal_strength)
+        dict[np.datetime64, list[tuple[str, float]]]: Dictionary with time as keys and list of (satellite, signal_strength)
               tuples sorted by signal strength (descending order) as values.
               Example: {
                   np.datetime64('2023-01-01T00:00:00'): [('G01', 45.0), ('G02', 43.5), ...],
@@ -256,13 +256,26 @@ def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str 
                 continue
             if sv not in out_data[time_idx]["ambiguities"]:
                 out_data[time_idx]["ambiguities"][sv] = {
-                    "wide_lane_ambiguity": None,
-                    "ionospheric_ambiguity": None,
+                    "widelane_L1L2": None,
+                    "ionospheric_L1L2": None,
+                    "S1": None,
+                    "S2": None,
                 }
-            out_data[time_idx]["ambiguities"][sv]["wide_lane_L1L2"] = float(
+            out_data[time_idx]["ambiguities"][sv]["widelane_L1L2"] = float(
                 _wl_amb.sel(time=time_val).values
             )
             out_data[time_idx]["ambiguities"][sv]["ionospheric_L1L2"] = float(
                 _io_amb.sel(time=time_val).values
             )
+            # Also store signal strengths
+            if f"S1{l1_obs_code}" in rnxobs:
+                s1_strength = float(
+                    rnxobs[f"S1{l1_obs_code}"].sel(sv=sv, time=time_val).values
+                )
+                out_data[time_idx]["ambiguities"][sv]["S1"] = s1_strength
+            if f"S2{l2_obs_code}" in rnxobs:
+                s2_strength = float(
+                    rnxobs[f"S2{l2_obs_code}"].sel(sv=sv, time=time_val).values
+                )
+                out_data[time_idx]["ambiguities"][sv]["S2"] = s2_strength
     return out_data
