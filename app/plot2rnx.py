@@ -22,8 +22,8 @@ from app.gnss.constants import (
     iono_wlen,
 )
 from app.gnss.ambiguity import (
-    get_wineline_ambiguity,
-    get_narrowline_ambiguity,
+    get_widelane_ambiguity,
+    get_narrowlane_ambiguity,
     calculate_double_difference_widelane_ambiguity,
     calculate_double_difference_ionospheric_ambiguity,
 )
@@ -64,20 +64,20 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
         raise ValueError(
             f"Cannot find suitable signal codes for L1 or L2 for satellite {satname1}"
         )
-    _, amb_sat1_wl = get_wineline_ambiguity(
+    _, amb_sat1_wl = get_widelane_ambiguity(
         rnxobs, satname1, _obs_l1_code, _obs_l2_code
     )
-    _, amb_sat2_wl = get_wineline_ambiguity(
+    _, amb_sat2_wl = get_widelane_ambiguity(
         rnxobs, satname2, _obs_l1_code, _obs_l2_code
     )
     amb_sat1_wl_mean = float(amb_sat1_wl.mean().values)
     amb_sat2_wl_mean = float(amb_sat2_wl.mean().values)
 
     # Iono-free combination
-    _, amb_sat1_n1 = get_narrowline_ambiguity(
+    _, amb_sat1_n1 = get_narrowlane_ambiguity(
         rnxobs, satname1, amb_sat1_wl_mean, _obs_l1_code, _obs_l2_code
     )
-    _, amb_sat2_n1 = get_narrowline_ambiguity(
+    _, amb_sat2_n1 = get_narrowlane_ambiguity(
         rnxobs, satname2, amb_sat2_wl_mean, _obs_l1_code, _obs_l2_code
     )
 

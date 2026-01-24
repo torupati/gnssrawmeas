@@ -2,6 +2,7 @@
 Plot Pseudorange and carrier phase from RINEX observation file.
 """
 
+import json
 from pathlib import Path
 import argparse
 import warnings
@@ -15,8 +16,8 @@ import georinex as gr
 from georinex import rinexobs
 
 from app.gnss.ambiguity import (
-    get_wineline_ambiguity,
-    get_narrowline_ambiguity,
+    get_widelane_ambiguity,
+    get_narrowlane_ambiguity,
 )
 from app.gnss.constants import (
     CLIGHT,
@@ -205,12 +206,12 @@ def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     )
 
     time = rnxobs.time
-    _, amb_wl = get_wineline_ambiguity(rnxobs, satname, l1_signal_code, l2_signal_code)
+    _, amb_wl = get_widelane_ambiguity(rnxobs, satname, l1_signal_code, l2_signal_code)
     # Use the time-average of the wide-lane ambiguity in downstream computation
     amb_wl_mean = float(amb_wl.mean().values)
 
     # Iono-free combination
-    _, amb_n1 = get_narrowline_ambiguity(
+    _, amb_n1 = get_narrowlane_ambiguity(
         rnxobs, satname, amb_wl_mean, l1_signal_code, l2_signal_code
     )
 
@@ -251,6 +252,7 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
     """
     # Get all satellite list
     sv_values = [str(s) for s in rnxobs.sv.values]
+    l1_obs_code, l2_obs_code = None, None
 
     # Filter GPS satellites only (satellites starting with 'G')
     _satellites = sorted(
@@ -263,38 +265,58 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
     print("=" * 80)
 
     # Process each epoch
+    out_data = []
+    for time_idx, time_val in enumerate(rnxobs.time.values):
+        out_data.append({"time": time_val, "visible_satellites": [], "ambiguities": {}})
+
     for time_idx, time_val in enumerate(rnxobs.time.values):
         # Check GPS satellites observed at this epoch
-        visible_sats = []
-
+        out_data[time_idx]["visible_satellites"] = []
         for sv in _satellites:
-            try:
-                # Check S1C signal strength (to verify data exists)
-                if "S1C" in rnxobs:
-                    strength = float(rnxobs["S1C"].sel(sv=sv, time=time_val).values)
-                    if not np.isnan(strength):
-                        visible_sats.append(sv)
-                # If S1C is not available, try other signals
-                elif "C1C" in rnxobs:
-                    data = float(rnxobs["C1C"].sel(sv=sv, time=time_val).values)
-                    if not np.isnan(data):
-                        visible_sats.append(sv)
-            except (KeyError, ValueError):
-                continue
-
-        # Print time and GPS satellite list
+            if l1_obs_code is None:
+                l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
+            if l2_obs_code is None:
+                l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+            if f"S1{l1_obs_code}" in rnxobs:
+                strength = float(
+                    rnxobs[f"S1{l1_obs_code}"].sel(sv=sv, time=time_val).values
+                )
+                if np.isnan(strength):
+                    continue  # No data for this satellite at this epoch
+            out_data[time_idx]["visible_satellites"].append(sv)
         time_str = str(time_val)
-        if visible_sats:
+        if out_data[time_idx]["visible_satellites"]:
             print(
-                f"Epoch {time_idx + 1:4d} | {time_str} | GPS satellites: {', '.join(visible_sats)} (total: {len(visible_sats)})"
+                f"Epoch {time_idx + 1:4d} | {time_str} | GPS satellites: {', '.join(out_data[time_idx]['visible_satellites'])} (total: {len(out_data[time_idx]['visible_satellites'])})"
             )
         else:
             print(f"Epoch {time_idx + 1:4d} | {time_str} | No GPS satellites")
-
     print("=" * 80)
     print(f"Total epochs: {len(rnxobs.time.values)}")
     print(f"Total GPS satellites in file: {len(_satellites)}")
     print("=" * 80 + "\n")
+
+    for sv in _satellites:
+        l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
+        l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+        if l1_obs_code is None:
+            continue  # No L1 signal available for this satellite
+        # calculate wide-lane ambiguity to confirm observation presence
+        _time, _wl_amb = get_widelane_ambiguity(rnxobs, sv, l1_obs_code, l2_obs_code)
+        if _wl_amb.count().values == 0:
+            continue  # No valid observations for this satellite
+        for time_val in _time.values:
+            time_idx = np.where(rnxobs.time.values == time_val)[0][0]
+            if time_idx is None:
+                continue
+            if np.isnan(_wl_amb.sel(time=time_val).values):
+                continue
+            if sv not in out_data[time_idx]["ambiguities"]:
+                out_data[time_idx]["ambiguities"][sv] = {"wide_lane_ambiguity": []}
+            out_data[time_idx]["ambiguities"][sv]["wide_lane_ambiguity"].append(
+                float(_wl_amb.sel(time=time_val).values)
+            )
+    return out_data
 
 
 def main():
@@ -370,7 +392,13 @@ def main():
 
     # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
     if args.list_epochs:
-        print_gps_satellites_per_epoch(rnxobs, constellation_prefix=args.constellation)
+        _data = print_gps_satellites_per_epoch(
+            rnxobs, constellation_prefix=args.constellation
+        )
+        with open(
+            infile.stem + f"_{args.constellation}_satellites_per_epoch.json", "w"
+        ) as f:
+            json.dump({"file": str(infile), "data": _data}, f, indent=4, default=str)
         return
 
     output_figdir = Path(args.outdir)

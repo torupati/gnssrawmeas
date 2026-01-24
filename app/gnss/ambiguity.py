@@ -17,7 +17,7 @@ from .constants import (
 )
 
 
-def get_wineline_ambiguity(
+def get_widelane_ambiguity(
     rnxobs: xr.Dataset,
     satname: str,
     l1_signal_code: str = "C",
@@ -48,7 +48,7 @@ def get_wineline_ambiguity(
     return time, amb_wl
 
 
-def get_narrowline_ambiguity(
+def get_narrowlane_ambiguity(
     rnxobs: xr.Dataset,
     satname: str,
     amb_wl_mean: float,
@@ -142,16 +142,16 @@ def calculate_double_difference_widelane_ambiguity(
     Returns:
         DataArray: Double difference wide-lane ambiguity
     """
-    _, amb_sat1_rec1_wl = get_wineline_ambiguity(
+    _, amb_sat1_rec1_wl = get_widelane_ambiguity(
         rnxobs1, satname1, obs1_l1_code, obs1_l2_code
     )
-    _, amb_sat2_rec1_wl = get_wineline_ambiguity(
+    _, amb_sat2_rec1_wl = get_widelane_ambiguity(
         rnxobs1, satname2, obs1_l1_code, obs1_l2_code
     )
-    _, amb_sat1_rec2_wl = get_wineline_ambiguity(
+    _, amb_sat1_rec2_wl = get_widelane_ambiguity(
         rnxobs2, satname1, obs2_l1_code, obs2_l2_code
     )
-    _, amb_sat2_rec2_wl = get_wineline_ambiguity(
+    _, amb_sat2_rec2_wl = get_widelane_ambiguity(
         rnxobs2, satname2, obs2_l1_code, obs2_l2_code
     )
     # difference between two receivers and two satellites

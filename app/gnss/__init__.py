@@ -11,8 +11,8 @@ from .constants import (
     iono_wlen as iono_wlen,
 )
 from .ambiguity import (
-    get_wineline_ambiguity as get_wineline_ambiguity,
-    get_narrowline_ambiguity as get_narrowline_ambiguity,
+    get_widelane_ambiguity as get_widelane_ambiguity,
+    get_narrowlane_ambiguity as get_narrowlane_ambiguity,
     get_ionospheric_ambiguity as get_ionospheric_ambiguity,
 )
 
@@ -27,7 +27,7 @@ __all__ = [
     "wl_wlen",
     "nl_wlen",
     "iono_wlen",
-    "get_wineline_ambiguity",
-    "get_narrowline_ambiguity",
+    "get_widelane_ambiguity",
+    "get_narrowlane_ambiguity",
     "get_ionospheric_ambiguity",
 ]
