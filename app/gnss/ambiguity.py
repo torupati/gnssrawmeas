@@ -156,12 +156,16 @@ def calculate_double_difference_widelane_ambiguity(
     )
     # difference between two receivers and two satellites
     if time_synchronize:
+        amb_sat1_rec1_wl = amb_sat1_rec1_wl.drop_duplicates("time")
+        amb_sat2_rec1_wl = amb_sat2_rec1_wl.drop_duplicates("time")
         amb_sat1_rec2_wl = amb_sat1_rec2_wl.sel(
             time=amb_sat1_rec1_wl.time, method="nearest"
         )
         amb_sat2_rec2_wl = amb_sat2_rec2_wl.sel(
             time=amb_sat2_rec1_wl.time, method="nearest"
         )
+        amb_sat1_rec2_wl = amb_sat1_rec2_wl.drop_duplicates("time")
+        amb_sat2_rec2_wl = amb_sat2_rec2_wl.drop_duplicates("time")
     amb_wl_sat12_rec12 = (amb_sat1_rec1_wl - amb_sat2_rec1_wl) - (
         amb_sat1_rec2_wl - amb_sat2_rec2_wl
     )
@@ -208,12 +212,16 @@ def calculate_double_difference_ionospheric_ambiguity(
     )
     # difference between two receivers and two satellites
     if time_synchronize:
+        amb_sat1_rec1_iono = amb_sat1_rec1_iono.drop_duplicates("time")
+        amb_sat2_rec1_iono = amb_sat2_rec1_iono.drop_duplicates("time")
         amb_sat1_rec2_iono = amb_sat1_rec2_iono.sel(
             time=amb_sat1_rec1_iono.time, method="nearest"
         )
         amb_sat2_rec2_iono = amb_sat2_rec2_iono.sel(
             time=amb_sat2_rec1_iono.time, method="nearest"
         )
+        amb_sat1_rec2_iono = amb_sat1_rec2_iono.drop_duplicates("time")
+        amb_sat2_rec2_iono = amb_sat2_rec2_iono.drop_duplicates("time")
     amb_iono_sat12_rec12 = (amb_sat1_rec1_iono - amb_sat2_rec1_iono) - (
         amb_sat1_rec2_iono - amb_sat2_rec2_iono
     )

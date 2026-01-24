@@ -74,8 +74,12 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     amb_sat2_wl_mean = float(amb_sat2_wl.mean().values)
 
     # Iono-free combination
-    _, amb_sat1_n1 = get_narrowline_ambiguity(rnxobs, satname1, amb_sat1_wl_mean)
-    _, amb_sat2_n1 = get_narrowline_ambiguity(rnxobs, satname2, amb_sat2_wl_mean)
+    _, amb_sat1_n1 = get_narrowline_ambiguity(
+        rnxobs, satname1, amb_sat1_wl_mean, _obs_l1_code, _obs_l2_code
+    )
+    _, amb_sat2_n1 = get_narrowline_ambiguity(
+        rnxobs, satname2, amb_sat2_wl_mean, _obs_l1_code, _obs_l2_code
+    )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(r"Wide-lane Ambiguity $N_{L1} - N_{L2}$")
@@ -87,10 +91,26 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     axes[1].set_ylabel("Ambiguity $N_{L1}$ [cycle]")
 
     axes[2].set_title("Signal Strength")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname1), label=f"{satname1} S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname1), label=f"{satname1} S2X")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname2), label=f"{satname2} S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname2), label=f"{satname2} S2X")
+    axes[2].plot(
+        time,
+        rnxobs[f"S1{_obs_l1_code}"].sel(sv=satname1),
+        label=f"{satname1} S1{_obs_l1_code}",
+    )
+    axes[2].plot(
+        time,
+        rnxobs[f"S2{_obs_l2_code}"].sel(sv=satname1),
+        label=f"{satname1} S2{_obs_l2_code}",
+    )
+    axes[2].plot(
+        time,
+        rnxobs[f"S1{_obs_l1_code}"].sel(sv=satname2),
+        label=f"{satname2} S1{_obs_l1_code}",
+    )
+    axes[2].plot(
+        time,
+        rnxobs[f"S2{_obs_l2_code}"].sel(sv=satname2),
+        label=f"{satname2} S2{_obs_l2_code}",
+    )
     axes[2].set_ylabel("C/N0 [dB-Hz]")
     axes[2].legend()
     for ax in axes:
@@ -193,7 +213,7 @@ def plot_ambiguity_diff2(
         rf"Wide-lane Ambiguity DD {satname1}-{satname2} $N_{{L1}} - N_{{L2}}$"
     )
     axes[0].plot(
-        rnxobs1.time,
+        amb_wl_sat12_rec12.time,
         amb_wl_sat12_rec12,
         ".",
         label=f"Sat {satname1} - Sat {satname2} Rec1 - Rec2",
@@ -211,7 +231,7 @@ def plot_ambiguity_diff2(
 
     axes[1].set_title(rf"Iono-free Ambiguity DD {satname1}-{satname2} $N_{{L1}}$")
     axes[1].plot(
-        rnxobs1.time,
+        amb_iono_sat12_rec12.time,
         amb_iono_sat12_rec12 / iono_wlen,
         ".",
         label=f"Sat {satname1} - Sat {satname2} Rec1 - Rec2",
@@ -225,7 +245,7 @@ def plot_ambiguity_diff2(
     axes[1].set_ylabel(r"$\Delta B_{iono}$ [cycle]")
 
     axes[2].set_title("Signal Strength")
-    for signal_name in ["S1C", "S2X"]:
+    for signal_name in [f"S1{obs1_l1_code}", f"S2{obs1_l2_code}"]:
         axes[2].plot(
             rnxobs1.time,
             rnxobs1[signal_name].sel(sv=satname1),
