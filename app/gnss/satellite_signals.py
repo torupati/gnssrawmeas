@@ -219,10 +219,9 @@ def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str 
     out_data = []
     for time_idx, time_val in enumerate(rnxobs.time.values):
         out_data.append({"time": time_val, "visible_satellites": [], "ambiguities": {}})
-
-    for time_idx, time_val in enumerate(rnxobs.time.values):
+        if len(out_data) != time_idx + 1:
+            raise ValueError("Time index mismatch in output data structure")
         # Check GPS satellites observed at this epoch
-        out_data[time_idx]["visible_satellites"] = []
         for sv in _satellites:
             if l1_obs_code is None:
                 l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
@@ -235,6 +234,7 @@ def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str 
                 if np.isnan(strength):
                     continue  # No data for this satellite at this epoch
             out_data[time_idx]["visible_satellites"].append(sv)
+
     # Calculate ambiguities for each satellite
     for sv in _satellites:
         l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
@@ -259,10 +259,10 @@ def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str 
                     "wide_lane_ambiguity": None,
                     "ionospheric_ambiguity": None,
                 }
-            out_data[time_idx]["ambiguities"][sv]["wide_lane_ambiguity"] = float(
+            out_data[time_idx]["ambiguities"][sv]["wide_lane_L1L2"] = float(
                 _wl_amb.sel(time=time_val).values
             )
-            out_data[time_idx]["ambiguities"][sv]["ionospheric_ambiguity"] = float(
+            out_data[time_idx]["ambiguities"][sv]["ionospheric_L1L2"] = float(
                 _io_amb.sel(time=time_val).values
             )
     return out_data
