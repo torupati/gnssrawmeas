@@ -4,6 +4,8 @@ from logging import getLogger
 import numpy as np
 from georinex import rinexobs
 
+from app.gnss.ambiguity import get_ionospheric_ambiguity, get_widelane_ambiguity
+
 logger = getLogger(__name__)
 
 # from logre import logger
@@ -193,3 +195,74 @@ def get_satellite_pairs_by_signal_strength(
         pairs.append((reference_sat, sv))
 
     return pairs
+
+
+def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str = "G"):
+    """
+    Calculate multifrequency measurements for all satellites in the RINEX observation data.
+
+    Args:
+        rnxobs: RINEX observation data (georinex rinexobs object)
+        constellation_prefix: Prefix for the constellation to filter (default: 'G' for GPS)
+    """
+    # Get all satellite list
+    sv_values = [str(s) for s in rnxobs.sv.values]
+    l1_obs_code, l2_obs_code = None, None
+
+    # Filter GPS satellites only (satellites starting with 'G')
+    _satellites = sorted(
+        [s for s in sv_values if s.startswith(constellation_prefix)],
+        key=lambda x: int(x[1:]) if x[1:].isdigit() else 999,
+    )
+
+    # make time ordered output data structure
+    out_data = []
+    for time_idx, time_val in enumerate(rnxobs.time.values):
+        out_data.append({"time": time_val, "visible_satellites": [], "ambiguities": {}})
+
+    for time_idx, time_val in enumerate(rnxobs.time.values):
+        # Check GPS satellites observed at this epoch
+        out_data[time_idx]["visible_satellites"] = []
+        for sv in _satellites:
+            if l1_obs_code is None:
+                l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
+            if l2_obs_code is None:
+                l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+            if f"S1{l1_obs_code}" in rnxobs:
+                strength = float(
+                    rnxobs[f"S1{l1_obs_code}"].sel(sv=sv, time=time_val).values
+                )
+                if np.isnan(strength):
+                    continue  # No data for this satellite at this epoch
+            out_data[time_idx]["visible_satellites"].append(sv)
+    # Calculate ambiguities for each satellite
+    for sv in _satellites:
+        l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
+        l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+        if l1_obs_code is None:
+            continue  # No L1 signal available for this satellite
+        # calculate wide-lane ambiguity to confirm observation presence
+        _, _wl_amb = get_widelane_ambiguity(rnxobs, sv, l1_obs_code, l2_obs_code)
+        _, _io_amb = get_ionospheric_ambiguity(rnxobs, sv, l1_obs_code, l2_obs_code)
+        if _wl_amb.count().values == 0 or _io_amb.count().values == 0:
+            continue  # No valid observations for this satellite
+        for time_val in _wl_amb.time.values:
+            time_idx = np.where(rnxobs.time.values == time_val)[0][0]
+            if time_idx is None:
+                continue
+            if np.isnan(_wl_amb.sel(time=time_val).values) or np.isnan(
+                _io_amb.sel(time=time_val).values
+            ):
+                continue
+            if sv not in out_data[time_idx]["ambiguities"]:
+                out_data[time_idx]["ambiguities"][sv] = {
+                    "wide_lane_ambiguity": None,
+                    "ionospheric_ambiguity": None,
+                }
+            out_data[time_idx]["ambiguities"][sv]["wide_lane_ambiguity"] = float(
+                _wl_amb.sel(time=time_val).values
+            )
+            out_data[time_idx]["ambiguities"][sv]["ionospheric_ambiguity"] = float(
+                _io_amb.sel(time=time_val).values
+            )
+    return out_data

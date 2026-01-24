@@ -27,7 +27,10 @@ from app.gnss.constants import (
     wlen_L2,
     wlen_L5,
 )
-from app.gnss.satellite_signals import get_available_signal_code
+from app.gnss.satellite_signals import (
+    get_available_signal_code,
+    get_multifrequency_measurements,
+)
 
 logger = getLogger(__name__)
 basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -265,13 +268,9 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
     print("=" * 80)
 
     # Process each epoch
-    out_data = []
-    for time_idx, time_val in enumerate(rnxobs.time.values):
-        out_data.append({"time": time_val, "visible_satellites": [], "ambiguities": {}})
-
     for time_idx, time_val in enumerate(rnxobs.time.values):
         # Check GPS satellites observed at this epoch
-        out_data[time_idx]["visible_satellites"] = []
+        _visible_satellites = []
         for sv in _satellites:
             if l1_obs_code is None:
                 l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
@@ -283,11 +282,11 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
                 )
                 if np.isnan(strength):
                     continue  # No data for this satellite at this epoch
-            out_data[time_idx]["visible_satellites"].append(sv)
+            _visible_satellites.append(sv)
         time_str = str(time_val)
-        if out_data[time_idx]["visible_satellites"]:
+        if _visible_satellites:
             print(
-                f"Epoch {time_idx + 1:4d} | {time_str} | GPS satellites: {', '.join(out_data[time_idx]['visible_satellites'])} (total: {len(out_data[time_idx]['visible_satellites'])})"
+                f"Epoch {time_idx + 1:4d} | {time_str} | GPS satellites: {', '.join(_visible_satellites)} (total: {len(_visible_satellites)})"
             )
         else:
             print(f"Epoch {time_idx + 1:4d} | {time_str} | No GPS satellites")
@@ -295,28 +294,6 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
     print(f"Total epochs: {len(rnxobs.time.values)}")
     print(f"Total GPS satellites in file: {len(_satellites)}")
     print("=" * 80 + "\n")
-
-    for sv in _satellites:
-        l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
-        l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
-        if l1_obs_code is None:
-            continue  # No L1 signal available for this satellite
-        # calculate wide-lane ambiguity to confirm observation presence
-        _time, _wl_amb = get_widelane_ambiguity(rnxobs, sv, l1_obs_code, l2_obs_code)
-        if _wl_amb.count().values == 0:
-            continue  # No valid observations for this satellite
-        for time_val in _time.values:
-            time_idx = np.where(rnxobs.time.values == time_val)[0][0]
-            if time_idx is None:
-                continue
-            if np.isnan(_wl_amb.sel(time=time_val).values):
-                continue
-            if sv not in out_data[time_idx]["ambiguities"]:
-                out_data[time_idx]["ambiguities"][sv] = {"wide_lane_ambiguity": []}
-            out_data[time_idx]["ambiguities"][sv]["wide_lane_ambiguity"].append(
-                float(_wl_amb.sel(time=time_val).values)
-            )
-    return out_data
 
 
 def main():
@@ -392,7 +369,8 @@ def main():
 
     # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
     if args.list_epochs:
-        _data = print_gps_satellites_per_epoch(
+        print_gps_satellites_per_epoch(rnxobs, constellation_prefix=args.constellation)
+        _data = get_multifrequency_measurements(
             rnxobs, constellation_prefix=args.constellation
         )
         with open(

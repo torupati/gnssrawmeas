@@ -309,6 +309,7 @@ def main():
     rnxobs2: rinexobs = gr.load(str(infile2))
     logger.debug(f"rnxobs2: {rnxobs2}")
 
+    # Prepare output directories
     output_figdir = Path(args.outdir)
     output_figdir.mkdir(parents=True, exist_ok=True)
     Path(output_figdir / "single").mkdir(parents=True, exist_ok=True)
@@ -316,7 +317,6 @@ def main():
     Path(output_figdir / "diffdiff").mkdir(parents=True, exist_ok=True)
 
     # target satellite and initial observables plot
-    # Derive GPS satellites present in the file (sv starting with 'G')
     try:
         sv_values = [str(s) for s in rnxobs1.sv.values + rnxobs2.sv.values]
         sv_values = list(set(sv_values))
@@ -324,25 +324,25 @@ def main():
         # Fallback in case .sv isn't a standard coordinate for some reason
         sv_values = [str(s) for s in rnxobs1.coords.get("sv", []).values]
 
-    constelation_type = args.constellation
-    if constelation_type == "a":
+    constellation_type = args.constellation
+    if constellation_type == "a":
         satname_list = sorted(
             sv_values,
             key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
         )
     else:
         satname_list = sorted(
-            [s for s in sv_values if s.startswith(constelation_type)],
+            [s for s in sv_values if s.startswith(constellation_type)],
             key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
         )
     if not satname_list:
         raise ValueError("No satellites found in the provided RINEX files.")
-    logger.info(f"Detected satellites ({constelation_type}): {satname_list}")
+    logger.info(f"Detected satellites ({constellation_type}): {satname_list}")
 
     satellite_pair = get_satellite_pairs_by_signal_strength(
         rnxobs1,
         signal_type="S1C",
-        constellation=constelation_type,
+        constellation=constellation_type,
         top_n=6,
     )
     if not satellite_pair:
