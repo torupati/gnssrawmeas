@@ -7,18 +7,120 @@ import argparse
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+from app.gnss.constants import iono_wlen
+
+
+def plot_ambiguity_diff2(
+    data2recvs: list,
+    satname1: str,
+    satname2: str,
+):
+    """Plot ambiguity difference between two receivers and two satellites.
+
+    Args:
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+
+    Returns:
+        _type_: _description_
+    """
+    _tmp_data: dict[str, list[Union[datetime, float]]] = {
+        "time": [],
+        "amb_wl_diff": [],
+        "amb_iono_diff": [],
+    }
+    for data in data2recvs:
+        if satname1 not in data.get("ambiguities", {}).keys():
+            continue
+        if satname2 not in data.get("ambiguities", {}).keys():
+            continue
+        amb_wl_1 = data["ambiguities"][satname1].get("widelane_L1L2", None)
+        amb_wl_2 = data["ambiguities"][satname2].get("widelane_L1L2", None)
+        amb_iono_1 = data["ambiguities"][satname1].get("ionospheric_L1L2", None)
+        amb_iono_2 = data["ambiguities"][satname2].get("ionospheric_L1L2", None)
+        if amb_wl_1 is None or amb_wl_2 is None:
+            continue
+        if amb_iono_1 is None or amb_iono_2 is None:
+            continue
+        amb_wl_sat12_rec12 = amb_wl_2 - amb_wl_1
+        amb_iono_sat12_rec12 = amb_iono_2 - amb_iono_1
+        _tmp_data["time"].append(data["time"])
+        _tmp_data["amb_wl_diff"].append(amb_wl_sat12_rec12)
+        _tmp_data["amb_iono_diff"].append(amb_iono_sat12_rec12)
+    fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
+    axes[0].set_title(
+        rf"Wide-lane Ambiguity DD {satname1}-{satname2} $N_{{L1}} - N_{{L2}}$"
+    )
+    axes[0].plot(
+        _tmp_data["time"],
+        _tmp_data["amb_wl_diff"],
+        ".",
+        label=f"Sat {satname1} - Sat {satname2} Rec1 - Rec2",
+    )
+    axes[0].axhline(
+        np.mean(_tmp_data["amb_wl_diff"]), color="gray", linestyle="--", label="Mean"
+    )
+    axes[0].axhline(
+        np.round(np.mean(_tmp_data["amb_wl_diff"])),
+        color="gray",
+        linestyle="--",
+        label="Nearest Integer",
+    )
+    axes[0].set_ylabel(r"$\Delta B_{wl}$ [cycle]")
+
+    axes[1].set_title(rf"Iono-free Ambiguity DD {satname1}-{satname2} $N_{{L1}}$")
+    axes[1].plot(
+        _tmp_data["time"],
+        np.array(_tmp_data["amb_iono_diff"]) / iono_wlen,
+        ".",
+        label=f"Sat {satname1} - Sat {satname2} Rec1 - Rec2",
+    )
+    axes[1].axhline(
+        np.mean(np.array(_tmp_data["amb_iono_diff"])) / iono_wlen,
+        color="gray",
+        linestyle="--",
+        label="Mean",
+    )
+    axes[1].set_ylabel(r"$\Delta B_{iono}$ [cycle]")
+
+    #    axes[2].set_title("Signal Strength")
+    #    for signal_name in [f"S1{obs1_l1_code}", f"S2{obs1_l2_code}"]:
+    #        axes[2].plot(
+    #            rnxobs1.time,
+    #            rnxobs1[signal_name].sel(sv=satname1),
+    #            label=f"{satname1} {signal_name}",
+    #        )
+    #        axes[2].plot(#
+    #            rnxobs1.time,
+    #            rnxobs1[signal_name].sel(sv=satname2),
+    #            label=f"{satname2} {signal_name}",
+    #        )
+    #    axes[2].set_ylabel("C/N0 [dB-Hz]")#
+    axes[2].legend(loc="upper right", fontsize="small")
+    for ax in axes:
+        ax.grid(True)
+    axes[2].set_xlabel("GPST")
+    #    axes[2].set_xlim(rnxobs1.time[0], rnxobs1.time[-1])
+    return fig, axes
 
 
 def load_json_file(filepath: str) -> dict:
     """Load JSON file and return the data."""
+
+    def parse_time(time_str: str) -> datetime:
+        """Parse ISO format time string to datetime."""
+        return datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+
     with open(filepath, "r") as f:
-        return json.load(f)
-
-
-def parse_time(time_str: str) -> datetime:
-    """Parse ISO format time string to datetime."""
-    return datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+        data = json.load(f)
+        for entry in data["data"]:
+            entry["time"] = parse_time(entry["time"])
+        return data
 
 
 def find_closest_time_index(
@@ -36,10 +138,10 @@ def find_closest_time_index(
     """
     min_diff: Optional[float] = None
     closest_idx: int = 0
-    closest_time: datetime = parse_time(time_list[0]["time"])
+    closest_time: datetime = time_list[0]["time"]
 
     for idx, entry in enumerate(time_list):
-        entry_time = parse_time(entry["time"])
+        entry_time = entry["time"]
         diff = abs((target_time - entry_time).total_seconds())
 
         if min_diff is None or diff < min_diff:
@@ -131,7 +233,7 @@ def compare_observations(
     out_data = []
     # For each time in file1, find closest time in file2
     for idx1, entry1 in enumerate(data1):
-        time1 = parse_time(entry1["time"])
+        time1 = entry1["time"]
         idx2, time2 = find_closest_time_index(time1, data2)
 
         time_diff = abs((time1 - time2).total_seconds())
@@ -198,7 +300,14 @@ def main():
     # Optionally, save output data to a JSON file
     output_filepath = "comparison_output.json"
     with open(output_filepath, "w") as f:
-        json.dump(data, f, indent=4)
+        json.dump(
+            data,
+            f,
+            indent=2,
+            default=lambda obj: obj.strftime("%Y-%m-%dT%H:%M:%S.%f")
+            if isinstance(obj, datetime)
+            else str(obj),
+        )
     print(f"Comparison data saved to {output_filepath}")
 
 
