@@ -245,7 +245,7 @@ def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     return fig, axes
 
 
-def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str = "G"):
+def print_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str = "G"):
     """
     Print the list of GPS satellites for each epoch (time).
 
@@ -286,13 +286,13 @@ def print_gps_satellites_per_epoch(rnxobs: rinexobs, constellation_prefix: str =
         time_str = str(time_val)
         if _visible_satellites:
             print(
-                f"Epoch {time_idx + 1:4d} | {time_str} | GPS satellites: {', '.join(_visible_satellites)} (total: {len(_visible_satellites)})"
+                f"Epoch {time_idx + 1:4d} | {time_str} | Satellites: {', '.join(_visible_satellites)} (total: {len(_visible_satellites)})"
             )
         else:
-            print(f"Epoch {time_idx + 1:4d} | {time_str} | No GPS satellites")
+            print(f"Epoch {time_idx + 1:4d} | {time_str} | No satellites")
     print("=" * 80)
     print(f"Total epochs: {len(rnxobs.time.values)}")
-    print(f"Total GPS satellites in file: {len(_satellites)}")
+    print(f"Total satellites in file: {len(_satellites)}")
     print("=" * 80 + "\n")
 
 
@@ -321,7 +321,7 @@ def main():
     parser.add_argument(
         "--list-epochs",
         action="store_true",
-        help="Print GPS satellites visible at each epoch and exit (no plots)",
+        help="Print satellites visible at each epoch and exit (no plots)",
     )
     parser.add_argument(
         "--start-time",
@@ -369,7 +369,7 @@ def main():
 
     # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
     if args.list_epochs:
-        print_gps_satellites_per_epoch(rnxobs, constellation_prefix=args.constellation)
+        print_satellites_per_epoch(rnxobs, constellation_prefix=args.constellation)
         _data = get_multifrequency_measurements(
             rnxobs, constellation_prefix=args.constellation
         )

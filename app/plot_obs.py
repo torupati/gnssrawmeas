@@ -325,8 +325,8 @@ def main():
     data = compare_observations(file1, file2)
 
     # Extract satellite pairs from data
-    sat_pair_list: list[tuple[str, str]] = []
-    sat_pair_list = [
+    sat_pair_lists: dict[str, list[tuple[str, str]]] = {}
+    sat_pair_lists["G"] = [
         ("G12", "G10"),
         ("G12", "G15"),
         ("G12", "G23"),
@@ -352,7 +352,7 @@ def main():
     print(f"Comparison data saved to {output_filepath}")
 
     # Plotting
-    for sat1, sat2 in sat_pair_list:
+    for sat1, sat2 in sat_pair_lists["G"]:
         fig, axes = plot_obs(data, sat1, sat2)
         fig.savefig(
             output_figdir / "diffdiff" / f"DD_ambiguity_{sat1}_{sat2}.png",
