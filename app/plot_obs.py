@@ -15,12 +15,12 @@ import matplotlib.pyplot as plt
 from app.gnss.constants import iono_wlen
 
 
-def plot_ambiguity_diff2(
+def plot_obs(
     data2recvs: list,
     satname1: str,
     satname2: str,
 ):
-    """Plot ambiguity difference between two receivers and two satellites.
+    """Plot differences between two receivers and two satellites.
 
     Args:
         satname1 (str): Satellite name 1
@@ -33,16 +33,25 @@ def plot_ambiguity_diff2(
         "time": [],
         "amb_wl_diff": [],
         "amb_iono_diff": [],
+        "S1_sat1_rec1": [],
+        "S1_sat1_rec2": [],
+        "S1_sat2_rec1": [],
+        "S1_sat2_rec2": [],
     }
     for data in data2recvs:
-        if satname1 not in data.get("ambiguities", {}).keys():
+        # print("analysing time:",data)
+        if satname1 not in data.get("ambiguity_differences", {}).keys():
             continue
-        if satname2 not in data.get("ambiguities", {}).keys():
+        if satname2 not in data.get("ambiguity_differences", {}).keys():
             continue
-        amb_wl_1 = data["ambiguities"][satname1].get("widelane_L1L2", None)
-        amb_wl_2 = data["ambiguities"][satname2].get("widelane_L1L2", None)
-        amb_iono_1 = data["ambiguities"][satname1].get("ionospheric_L1L2", None)
-        amb_iono_2 = data["ambiguities"][satname2].get("ionospheric_L1L2", None)
+        amb_wl_1 = data["ambiguity_differences"][satname1].get("widelane_L1L2", None)
+        amb_wl_2 = data["ambiguity_differences"][satname2].get("widelane_L1L2", None)
+        amb_iono_1 = data["ambiguity_differences"][satname1].get(
+            "ionospheric_L1L2", None
+        )
+        amb_iono_2 = data["ambiguity_differences"][satname2].get(
+            "ionospheric_L1L2", None
+        )
         if amb_wl_1 is None or amb_wl_2 is None:
             continue
         if amb_iono_1 is None or amb_iono_2 is None:
@@ -52,6 +61,19 @@ def plot_ambiguity_diff2(
         _tmp_data["time"].append(data["time"])
         _tmp_data["amb_wl_diff"].append(amb_wl_sat12_rec12)
         _tmp_data["amb_iono_diff"].append(amb_iono_sat12_rec12)
+        _tmp_data["S1_sat1_rec1"].append(
+            data["ambiguity_differences"][satname1].get("S1_rec1", None)
+        )
+        _tmp_data["S1_sat1_rec2"].append(
+            data["ambiguity_differences"][satname1].get("S1_rec2", None)
+        )
+        _tmp_data["S1_sat2_rec1"].append(
+            data["ambiguity_differences"][satname2].get("S1_rec1", None)
+        )
+        _tmp_data["S1_sat2_rec2"].append(
+            data["ambiguity_differences"][satname2].get("S1_rec2", None)
+        )
+        # print(f"{data['time']}  WL DD {satname1}-{satname2}: {amb_wl_sat12_rec12:+.6f} cycle, IONO DD {satname1}-{satname2}: {amb_iono_sat12_rec12:+.6f} m")
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(
         rf"Wide-lane Ambiguity DD {satname1}-{satname2} $N_{{L1}} - N_{{L2}}$"
@@ -88,24 +110,20 @@ def plot_ambiguity_diff2(
     )
     axes[1].set_ylabel(r"$\Delta B_{iono}$ [cycle]")
 
-    #    axes[2].set_title("Signal Strength")
-    #    for signal_name in [f"S1{obs1_l1_code}", f"S2{obs1_l2_code}"]:
-    #        axes[2].plot(
-    #            rnxobs1.time,
-    #            rnxobs1[signal_name].sel(sv=satname1),
-    #            label=f"{satname1} {signal_name}",
-    #        )
-    #        axes[2].plot(#
-    #            rnxobs1.time,
-    #            rnxobs1[signal_name].sel(sv=satname2),
-    #            label=f"{satname2} {signal_name}",
-    #        )
-    #    axes[2].set_ylabel("C/N0 [dB-Hz]")#
+    axes[2].set_title("Signal Strength")
+    for key in ["S1_sat1_rec1", "S1_sat1_rec2", "S1_sat2_rec1", "S1_sat2_rec2"]:
+        axes[2].plot(
+            _tmp_data["time"],
+            _tmp_data[key],
+            ".",
+            label=key,
+        )
+        axes[2].set_ylabel("C/N0 [dB-Hz]")  #
     axes[2].legend(loc="upper right", fontsize="small")
     for ax in axes:
         ax.grid(True)
     axes[2].set_xlabel("GPST")
-    #    axes[2].set_xlim(rnxobs1.time[0], rnxobs1.time[-1])
+    axes[2].set_xlim(_tmp_data["time"][0], _tmp_data["time"][-1])
     return fig, axes
 
 
@@ -240,37 +258,34 @@ def compare_observations(
         if time_diff > max_time_diff:
             continue  # Skip if time difference is greater than 1 minute
 
-        print(
-            f"obs1: {idx1:4d} {entry1['time']}  obs2: {idx2:4d} {data2[idx2]['time']}  (diff: {time_diff:.3f}s)"
-        )
+        # print(
+        #    f"obs1: {idx1:4d} {entry1['time']}  obs2: {idx2:4d} {data2[idx2]['time']}  (diff: {time_diff:.3f}s)"
+        # )
 
         # Compare ambiguities for common satellites
         ambig_diff = compare_ambiguities(data1[idx1], data2[idx2])
 
         if ambig_diff:
-            print(f"  Common satellites: {', '.join(ambig_diff.keys())}")
-
+            # print(f"  Common satellites: {', '.join(ambig_diff.keys())}")
             # Display differences for each satellite
-            for sat, diffs in ambig_diff.items():
-                print(f"    {sat}:")
-                for key, diff in diffs.items():
-                    if diff is not None:
-                        print(f"      {key}: {diff:+.6f}")
-                    else:
-                        print(f"      {key}: N/A (one or both values are null)")
+            # for sat, diffs in ambig_diff.items():
+            # print(f"    {sat}:")
+            # for key, diff in diffs.items():
+            #    if diff is not None:
+            #        print(f"      {key}: {diff:+.6f}")
+            #    else:
+            #        print(f"      {key}: N/A (one or both values are null)")
             out_data.append(
                 {
                     "obs1_index": idx1,
                     "obs2_index": idx2,
-                    "time1": entry1["time"],
-                    "time2": data2[idx2]["time"],
+                    "time": entry1["time"],
+                    "time_ref": data2[idx2]["time"],
                     "ambiguity_differences": ambig_diff,
                 }
             )
-        else:
-            print("  No common satellites")
-
-        print()
+        # else:
+        #    print("  No common satellites")
     return out_data
 
 
@@ -281,11 +296,18 @@ def main():
     )
     parser.add_argument("file1", help="Path to first JSON file")
     parser.add_argument("file2", help="Path to second JSON file")
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        default="./outfigs/",
+        help="Directory to write output figure files (default: ./outfigs)",
+    )
 
     args = parser.parse_args()
 
     file1 = args.file1
     file2 = args.file2
+    output_figdir = Path(args.outdir)
 
     # Check if files exist
     if not Path(file1).exists():
@@ -295,11 +317,30 @@ def main():
     if not Path(file2).exists():
         print(f"Error: {file2} not found")
         return
+    output_figdir.mkdir(parents=True, exist_ok=True)
+    Path(output_figdir / "single").mkdir(parents=True, exist_ok=True)
+    Path(output_figdir / "diff").mkdir(parents=True, exist_ok=True)
+    Path(output_figdir / "diffdiff").mkdir(parents=True, exist_ok=True)
 
     data = compare_observations(file1, file2)
+
+    # Extract satellite pairs from data
+    sat_pair_list: list[tuple[str, str]] = []
+    sat_pair_list = [
+        ("G12", "G10"),
+        ("G12", "G15"),
+        ("G12", "G23"),
+        ("G12", "G24"),
+        ("G12", "G25"),
+    ]
+    #    for entry in data:
+    #        for sat in entry["ambiguity_differences"].keys():
+    #            if sat not in sat_pair_list:
+    #                sat_pair_list.append(sat)
+
     # Optionally, save output data to a JSON file
-    output_filepath = "comparison_output.json"
-    with open(output_filepath, "w") as f:
+    output_filepath = output_figdir / "comparison_output.json"
+    with open(str(output_filepath), "w", encoding="utf-8") as f:
         json.dump(
             data,
             f,
@@ -309,6 +350,16 @@ def main():
             else str(obj),
         )
     print(f"Comparison data saved to {output_filepath}")
+
+    # Plotting
+    for sat1, sat2 in sat_pair_list:
+        fig, axes = plot_obs(data, sat1, sat2)
+        fig.savefig(
+            output_figdir / "diffdiff" / f"DD_ambiguity_{sat1}_{sat2}.png",
+            dpi=300,
+            bbox_inches="tight",
+        )
+        plt.close(fig)
 
 
 if __name__ == "__main__":
