@@ -64,21 +64,43 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
         raise ValueError(
             f"Cannot find suitable signal codes for L1 or L2 for satellite {satname1}"
         )
-    _, amb_sat1_wl = get_widelane_ambiguity(
-        rnxobs, satname1, _obs_l1_code, _obs_l2_code
+    amb_sat1_wl = get_widelane_ambiguity(
+        rnxobs,
+        satname1,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
     )
-    _, amb_sat2_wl = get_widelane_ambiguity(
-        rnxobs, satname2, _obs_l1_code, _obs_l2_code
+    amb_sat2_wl = get_widelane_ambiguity(
+        rnxobs,
+        satname2,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
     )
     amb_sat1_wl_mean = float(amb_sat1_wl.mean().values)
     amb_sat2_wl_mean = float(amb_sat2_wl.mean().values)
 
     # Iono-free combination
-    _, amb_sat1_n1 = get_narrowlane_ambiguity(
-        rnxobs, satname1, amb_sat1_wl_mean, _obs_l1_code, _obs_l2_code
+    amb_sat1_n1 = get_narrowlane_ambiguity(
+        rnxobs,
+        satname1,
+        amb_sat1_wl_mean,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
     )
-    _, amb_sat2_n1 = get_narrowlane_ambiguity(
-        rnxobs, satname2, amb_sat2_wl_mean, _obs_l1_code, _obs_l2_code
+    amb_sat2_n1 = get_narrowlane_ambiguity(
+        rnxobs,
+        satname2,
+        amb_sat2_wl_mean,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
     )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)

@@ -226,7 +226,10 @@ def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str 
             if l1_obs_code is None:
                 l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
             if l2_obs_code is None:
-                l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+                if constellation_prefix == "E":
+                    l2_obs_code = get_available_signal_code(rnxobs, sv, "L5")
+                elif constellation_prefix in ["G", "J"]:
+                    l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
             if f"S1{l1_obs_code}" in rnxobs:
                 strength = float(
                     rnxobs[f"S1{l1_obs_code}"].sel(sv=sv, time=time_val).values
@@ -237,13 +240,50 @@ def get_multifrequency_measurements(rnxobs: rinexobs, constellation_prefix: str 
 
     # Calculate ambiguities for each satellite
     for sv in _satellites:
-        l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
-        l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+        if constellation_prefix == "E":
+            l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
+            l2_obs_code = get_available_signal_code(rnxobs, sv, "L5")
+            _wl_amb = get_widelane_ambiguity(
+                rnxobs,
+                sv,
+                f"C1{l1_obs_code}",
+                f"L1{l1_obs_code}",
+                f"C2{l2_obs_code}",
+                f"L5{l2_obs_code}",
+            )
+            _io_amb = get_ionospheric_ambiguity(
+                rnxobs,
+                sv,
+                f"C1{l1_obs_code}",
+                f"L1{l1_obs_code}",
+                f"C2{l2_obs_code}",
+                f"L5{l2_obs_code}",
+            )
+        elif constellation_prefix in ["G", "J"]:
+            l1_obs_code = get_available_signal_code(rnxobs, sv, "L1")
+            l2_obs_code = get_available_signal_code(rnxobs, sv, "L2")
+            _wl_amb = get_widelane_ambiguity(
+                rnxobs,
+                sv,
+                f"C1{l1_obs_code}",
+                f"L1{l1_obs_code}",
+                f"C2{l2_obs_code}",
+                f"L2{l2_obs_code}",
+            )
+            _io_amb = get_ionospheric_ambiguity(
+                rnxobs,
+                sv,
+                f"C1{l1_obs_code}",
+                f"L1{l1_obs_code}",
+                f"C2{l2_obs_code}",
+                f"L2{l2_obs_code}",
+            )
+        else:
+            continue  # Unsupported constellation
+
         if l1_obs_code is None:
             continue  # No L1 signal available for this satellite
         # calculate wide-lane ambiguity to confirm observation presence
-        _, _wl_amb = get_widelane_ambiguity(rnxobs, sv, l1_obs_code, l2_obs_code)
-        _, _io_amb = get_ionospheric_ambiguity(rnxobs, sv, l1_obs_code, l2_obs_code)
         if _wl_amb.count().values == 0 or _io_amb.count().values == 0:
             continue  # No valid observations for this satellite
         for time_val in _wl_amb.time.values:

@@ -209,13 +209,26 @@ def plot_ambiguity_single_sat_single_rec(rnxobs: rinexobs, satname: str):
     )
 
     time = rnxobs.time
-    _, amb_wl = get_widelane_ambiguity(rnxobs, satname, l1_signal_code, l2_signal_code)
+    amb_wl = get_widelane_ambiguity(
+        rnxobs,
+        satname,
+        f"C1{l1_signal_code}",
+        f"L1{l1_signal_code}",
+        f"C2{l2_signal_code}",
+        f"L2{l2_signal_code}",
+    )
     # Use the time-average of the wide-lane ambiguity in downstream computation
     amb_wl_mean = float(amb_wl.mean().values)
 
     # Iono-free combination
-    _, amb_n1 = get_narrowlane_ambiguity(
-        rnxobs, satname, amb_wl_mean, l1_signal_code, l2_signal_code
+    amb_n1 = get_narrowlane_ambiguity(
+        rnxobs,
+        satname,
+        amb_wl_mean,
+        f"C1{l1_signal_code}",
+        f"L1{l1_signal_code}",
+        f"C2{l2_signal_code}",
+        f"L2{l2_signal_code}",
     )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)

@@ -5,13 +5,13 @@ Functions here operate on xarray Datasets returned by georinex.
 
 from __future__ import annotations
 
-from typing import Tuple
 import xarray as xr
 
 from .constants import (
     CLIGHT,
     L1_FREQ,
     L2_FREQ,
+    E5A_FREQ,
     wlen_L1,
     wlen_L2,
 )
@@ -20,9 +20,11 @@ from .constants import (
 def get_widelane_ambiguity(
     rnxobs: xr.Dataset,
     satname: str,
-    l1_signal_code: str = "C",
-    l2_signal_code: str = "X",
-) -> Tuple[xr.DataArray, xr.DataArray]:
+    pr_l1_code: str = "C1C",
+    cp_l1_code: str = "L1C",
+    pr_l2_code: str = "C2X",
+    cp_l2_code: str = "L2X",
+) -> xr.DataArray:
     """Compute wide-lane ambiguity for a given satellite.
 
     Returns a tuple of (time, ambiguity DataArray).
@@ -30,45 +32,68 @@ def get_widelane_ambiguity(
     Args:
         rnxobs: RINEX observation dataset
         satname: Satellite name (e.g., 'G01')
-        l1_signal_code: Signal code for L1 (e.g., 'C', 'I', 'X')
-        l2_signal_code: Signal code for L2 (e.g., 'X', 'W', 'C')
+        pr_l1_code: Pseudorange observation code for L1 (e.g., 'C1C', 'C1I', 'C1X')
+        cp_l1_code: Carrier phase observation code for L1 (e.g., 'L1C', 'L1I', 'L1X')
+        pr_l2_code: Pseudorange observation code for L2 (e.g., 'C2X', 'C2W', 'C2C')
+        cp_l2_code: Carrier phase observation code for L2 (e.g., 'L2X', 'L2W', 'L2C')
+    Returns:
+        wide-lane ambiguity DataArray
     """
-    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
-    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
-    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
-    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
-    time = rnxobs.time
+    pr_l1 = rnxobs[pr_l1_code].sel(sv=satname)
+    cp_l1 = rnxobs[cp_l1_code].sel(sv=satname)
+    pr_l2 = rnxobs[pr_l2_code].sel(sv=satname)
+    cp_l2 = rnxobs[cp_l2_code].sel(sv=satname)
 
-    wl_wlen = CLIGHT / (L1_FREQ - L2_FREQ)
-    nl_pr = (
-        L1_FREQ / (L1_FREQ + L2_FREQ) * pr_l1 + L2_FREQ / (L1_FREQ + L2_FREQ) * pr_l2
-    )
-    wl_cp = cp_l1 - cp_l2
-    amb_wl = wl_cp - nl_pr / wl_wlen
-    return time, amb_wl
+    if satname[0] in ["G", "J"] and pr_l2_code[0:2] == "C2" and cp_l2_code[0:2] == "L2":
+        wl_wlen = CLIGHT / (L1_FREQ - L2_FREQ)
+        nl_pr = (
+            L1_FREQ / (L1_FREQ + L2_FREQ) * pr_l1
+            + L2_FREQ / (L1_FREQ + L2_FREQ) * pr_l2
+        )
+        wl_cp = cp_l1 - cp_l2
+        amb_wl = wl_cp - nl_pr / wl_wlen
+    elif satname[0] == "E":
+        # Galileo E1-E5a
+        wl_wlen = CLIGHT / (L1_FREQ - E5A_FREQ)
+        nl_pr = (
+            L1_FREQ / (L1_FREQ + E5A_FREQ) * pr_l1
+            + E5A_FREQ / (L1_FREQ + E5A_FREQ) * pr_l2
+        )
+        wl_cp = cp_l1 - cp_l2
+        amb_wl = wl_cp - nl_pr / wl_wlen
+    else:
+        raise ValueError(
+            "Wide-lane ambiguity could not be computed for the given satellite and codes."
+        )
+    return amb_wl
 
 
 def get_narrowlane_ambiguity(
     rnxobs: xr.Dataset,
     satname: str,
     amb_wl_mean: float,
-    l1_signal_code: str = "C",
-    l2_signal_code: str = "X",
-) -> Tuple[xr.DataArray, xr.DataArray]:
+    pr_l1_code: str = "C1C",
+    cp_l1_code: str = "L1C",
+    pr_l2_code: str = "C2X",
+    cp_l2_code: str = "L2X",
+) -> xr.DataArray:
     """Compute narrow-lane ambiguity N1 using iono-free combination and wide-lane mean.
 
     Args:
         rnxobs: RINEX observation dataset
         satname: Satellite name (e.g., 'G01')
         amb_wl_mean: Mean wide-lane ambiguity value
-        l1_signal_code: Signal code for L1 (e.g., 'C', 'I', 'X')
-        l2_signal_code: Signal code for L2 (e.g., 'X', 'W', 'C')
+        pr_l1_code: Pseudorange observation code for L1 (e.g., 'C1C', 'C1I', 'C1X')
+        cp_l1_code: Carrier phase observation code for L1 (e.g., 'L1C', 'L1I', 'L1X')
+        pr_l2_code: Pseudorange observation code for L2 (e.g., 'C2X', 'C2W', 'C2C')
+        cp_l2_code: Carrier phase observation code for L2 (e.g., 'L2X', 'L2W', 'L2C')
+    Returns:
+        narrow-lane ambiguity DataArray
     """
-    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
-    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
-    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
-    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
-    time = rnxobs.time
+    pr_l1 = rnxobs[pr_l1_code].sel(sv=satname)
+    cp_l1 = rnxobs[cp_l1_code].sel(sv=satname)
+    pr_l2 = rnxobs[pr_l2_code].sel(sv=satname)
+    cp_l2 = rnxobs[cp_l2_code].sel(sv=satname)
 
     pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
     cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
@@ -82,38 +107,64 @@ def get_narrowlane_ambiguity(
         (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
         + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
     )
-    return time, amb_n1
+    return amb_n1
 
 
 def get_ionospheric_ambiguity(
     rnxobs: xr.Dataset,
     satname: str,
-    l1_signal_code: str = "C",
-    l2_signal_code: str = "X",
-) -> Tuple[xr.DataArray, xr.DataArray]:
+    pr_l1_code: str = "C1C",
+    cp_l1_code: str = "L1C",
+    pr_l2_code: str = "C2X",
+    cp_l2_code: str = "L2X",
+) -> xr.DataArray:
     """Compute iono-free ambiguity using L1/L2 combinations.
 
     Args:
         rnxobs: RINEX observation dataset
         satname: Satellite name (e.g., 'G01')
-        l1_signal_code: Signal code for L1 (e.g., 'C', 'I', 'X')
-        l2_signal_code: Signal code for L2 (e.g., 'X', 'W', 'C')
+        pr_l1_code: Pseudorange observation code for L1 (e.g., 'C1C', 'C1I', 'C1X')
+        cp_l1_code: Carrier phase observation code for L1 (e.g., 'L1C', 'L1I', 'L1X')
+        pr_l2_code: Pseudorange observation code for L2 (e.g., 'C2X', 'C2W', 'C2C')
+        cp_l2_code: Carrier phase observation code for L2 (e.g., 'L2X', 'L2W', 'L2C')
+    Returns:
+        ionospheric ambiguity DataArray
     """
-    pr_l1 = rnxobs[f"C1{l1_signal_code}"].sel(sv=satname)
-    cp_l1 = rnxobs[f"L1{l1_signal_code}"].sel(sv=satname)
-    pr_l2 = rnxobs[f"C2{l2_signal_code}"].sel(sv=satname)
-    cp_l2 = rnxobs[f"L2{l2_signal_code}"].sel(sv=satname)
-    time = rnxobs.time
+    pr_l1 = rnxobs[pr_l1_code].sel(sv=satname)
+    cp_l1 = rnxobs[cp_l1_code].sel(sv=satname)
+    pr_l2 = rnxobs[pr_l2_code].sel(sv=satname)
+    cp_l2 = rnxobs[cp_l2_code].sel(sv=satname)
 
-    pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
-    cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
-        L1_FREQ**2 - L2_FREQ**2
-    )
-    amb_iono = (cp_if - pr_if) / (
-        (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
-        + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
-    )
-    return time, amb_iono
+    # if pr_l2_code[0:2] == "C2" and pr_l2_code != "C2X":
+    #    # Adjust for different L2 pseudorange codes
+    #     pr_l2 += 0.244 * wlen_L2  # Example adjustment value; may vary by code
+    amb_iono = None
+    if satname[0] in ["G", "J"] and pr_l2_code[0:2] == "C2" and cp_l2_code[0:2] == "L2":
+        pr_if = (L1_FREQ**2 * pr_l1 - L2_FREQ**2 * pr_l2) / (L1_FREQ**2 - L2_FREQ**2)
+        cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L2_FREQ**2 * wlen_L2 * cp_l2) / (
+            L1_FREQ**2 - L2_FREQ**2
+        )
+        amb_iono = (cp_if - pr_if) / (
+            (L1_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L1
+            + (L2_FREQ**2) / (L1_FREQ**2 - L2_FREQ**2) * wlen_L2
+        )
+    elif satname[0] == "E":
+        # Galileo E1-E5a
+        L5_FREQ = 1.17645e9
+        wlen_L5 = CLIGHT / L5_FREQ
+        pr_if = (L1_FREQ**2 * pr_l1 - L5_FREQ**2 * pr_l2) / (L1_FREQ**2 - L5_FREQ**2)
+        cp_if = (L1_FREQ**2 * wlen_L1 * cp_l1 - L5_FREQ**2 * wlen_L5 * cp_l2) / (
+            L1_FREQ**2 - L5_FREQ**2
+        )
+        amb_iono = (cp_if - pr_if) / (
+            (L1_FREQ**2) / (L1_FREQ**2 - L5_FREQ**2) * wlen_L1
+            + (L5_FREQ**2) / (L1_FREQ**2 - L5_FREQ**2) * wlen_L5
+        )
+    else:
+        raise NotImplementedError(
+            "Ionospheric ambiguity could not be computed for the given satellite and codes."
+        )
+    return amb_iono
 
 
 def calculate_double_difference_widelane_ambiguity(
@@ -142,17 +193,37 @@ def calculate_double_difference_widelane_ambiguity(
     Returns:
         DataArray: Double difference wide-lane ambiguity
     """
-    _, amb_sat1_rec1_wl = get_widelane_ambiguity(
-        rnxobs1, satname1, obs1_l1_code, obs1_l2_code
+    amb_sat1_rec1_wl = get_widelane_ambiguity(
+        rnxobs1,
+        satname1,
+        f"C1{obs1_l1_code}",
+        f"L1{obs1_l1_code}",
+        f"C2{obs1_l2_code}",
+        f"L2{obs1_l2_code}",
     )
-    _, amb_sat2_rec1_wl = get_widelane_ambiguity(
-        rnxobs1, satname2, obs1_l1_code, obs1_l2_code
+    amb_sat2_rec1_wl = get_widelane_ambiguity(
+        rnxobs1,
+        satname2,
+        f"C1{obs1_l1_code}",
+        f"L1{obs1_l1_code}",
+        f"C2{obs1_l2_code}",
+        f"L2{obs1_l2_code}",
     )
-    _, amb_sat1_rec2_wl = get_widelane_ambiguity(
-        rnxobs2, satname1, obs2_l1_code, obs2_l2_code
+    amb_sat1_rec2_wl = get_widelane_ambiguity(
+        rnxobs2,
+        satname1,
+        f"C1{obs2_l1_code}",
+        f"L1{obs2_l1_code}",
+        f"C2{obs2_l2_code}",
+        f"L2{obs2_l2_code}",
     )
-    _, amb_sat2_rec2_wl = get_widelane_ambiguity(
-        rnxobs2, satname2, obs2_l1_code, obs2_l2_code
+    amb_sat2_rec2_wl = get_widelane_ambiguity(
+        rnxobs2,
+        satname2,
+        f"C1{obs2_l1_code}",
+        f"L1{obs2_l1_code}",
+        f"C2{obs2_l2_code}",
+        f"L2{obs2_l2_code}",
     )
     # difference between two receivers and two satellites
     if time_synchronize:
@@ -198,17 +269,41 @@ def calculate_double_difference_ionospheric_ambiguity(
     Returns:
         DataArray: Double difference ionospheric ambiguity
     """
+    if satname1[0] != satname2[0]:
+        raise ValueError(
+            "Satellites must belong to the same constellation for ionospheric ambiguity calculation."
+        )
     _, amb_sat1_rec1_iono = get_ionospheric_ambiguity(
-        rnxobs1, satname1, obs1_l1_code, obs1_l2_code
+        rnxobs1,
+        satname1,
+        f"C1{obs1_l1_code}",
+        f"L1{obs1_l1_code}",
+        f"C2{obs1_l2_code}",
+        f"L2{obs1_l2_code}",
     )
     _, amb_sat2_rec1_iono = get_ionospheric_ambiguity(
-        rnxobs1, satname2, obs1_l1_code, obs1_l2_code
+        rnxobs1,
+        satname2,
+        f"C1{obs1_l1_code}",
+        f"L1{obs1_l1_code}",
+        f"C2{obs1_l2_code}",
+        f"L2{obs1_l2_code}",
     )
     _, amb_sat1_rec2_iono = get_ionospheric_ambiguity(
-        rnxobs2, satname1, obs2_l1_code, obs2_l2_code
+        rnxobs2,
+        satname1,
+        f"C1{obs2_l1_code}",
+        f"L1{obs2_l1_code}",
+        f"C2{obs2_l2_code}",
+        f"L2{obs2_l2_code}",
     )
     _, amb_sat2_rec2_iono = get_ionospheric_ambiguity(
-        rnxobs2, satname2, obs2_l1_code, obs2_l2_code
+        rnxobs2,
+        satname2,
+        f"C1{obs2_l1_code}",
+        f"L1{obs2_l1_code}",
+        f"C2{obs2_l2_code}",
+        f"L2{obs2_l2_code}",
     )
     # difference between two receivers and two satellites
     if time_synchronize:
