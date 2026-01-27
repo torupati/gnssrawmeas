@@ -10,6 +10,12 @@ CLIGHT: float = 299_792_458.0
 L1_FREQ: float = 1.57542e9
 L2_FREQ: float = 1.22760e9
 L5_FREQ: float = 1.17645e9
+L6_FREQ: float = 1.27875e9
+E1_FREQ: float = 1.57542e9
+E5A_FREQ: float = 1.17645e9
+E5B_FREQ: float = 1.20714e9
+E6_FREQ: float = 1.27875e9
+E8_FREQ: float = 1.191795e9  # E5(A+B) blended frequency
 
 # Wavelengths (m)
 wlen_L1: float = CLIGHT / L1_FREQ
