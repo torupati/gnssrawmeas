@@ -126,10 +126,12 @@ def main():
         raise FileNotFoundError(f"RINEX observation file not found: {infile}")
 
     warnings.simplefilter("ignore", FutureWarning)
-    logger.info(f"Loading RINEX observation file: {infile}")
+    logger.info("Loading RINEX observation file: %s", infile)
     rnxobs = gr.load(str(infile))
     logger.info(
-        f"Loaded RINEX observation file with {len(rnxobs.time.values)} epochs and {len(rnxobs.sv.values)} satellites"
+        "Loaded RINEX observation file with %d epochs and %d satellites",
+        len(rnxobs.time.values),
+        len(rnxobs.sv.values),
     )
 
     # Filter by time range if specified
@@ -140,17 +142,19 @@ def main():
 
         if start_time and end_time:
             rnxobs = rnxobs.sel(time=slice(start_time, end_time))
-            logger.info(f"Filtered data from {start_time} to {end_time}")
+            logger.info("Filtered data from %s to %s", start_time, end_time)
         elif start_time:
             rnxobs = rnxobs.sel(time=slice(start_time, None))
-            logger.info(f"Filtered data from {start_time} onwards")
+            logger.info("Filtered data from %s onwards", start_time)
         elif end_time:
             rnxobs = rnxobs.sel(time=slice(None, end_time))
-            logger.info(f"Filtered data up to {end_time}")
+            logger.info("Filtered data up to %s", end_time)
 
         filtered_epochs = len(rnxobs.time.values)
         logger.info(
-            f"Epochs after filtering: {filtered_epochs} (removed {original_epochs - filtered_epochs})"
+            "Epochs after filtering: %d (removed %d)",
+            filtered_epochs,
+            original_epochs - filtered_epochs,
         )
 
     # --list-epochs option to print GPS satellites per epoch. Terminate after printing.
@@ -180,20 +184,20 @@ def main():
         [s for s in sv_values if s.startswith(args.constellation)],
         key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
     )
-    logger.info(f"Detected {args.constellation} satellites: {satname_list}")
+    logger.info("Detected %s satellites: %s", args.constellation, satname_list)
     for satname in satname_list:
-        logger.info(f"{satname} processing... output figures to {output_figdir}")
+        logger.info("%s processing... output figures to %s", satname, output_figdir)
         out_figfile = output_figdir / f"observables_{satname}.png"
         fig, axes = plot_observables(rnxobs, satname, outfile=out_figfile)
         plt.close(fig)
-        logger.debug(f"Saved {out_figfile}")
+        logger.debug("Saved %s", out_figfile)
 
         fig, _ = plot_pr_cp(rnxobs, satname, freq="L1")
         if fig is not None:
             out_figfile = output_figdir / f"bias_analysis_L1_{satname}_L1.png"
             fig.savefig(out_figfile)
             plt.close(fig)
-            logger.debug(f"Saved {out_figfile}")
+            logger.debug("Saved %s", out_figfile)
         else:
             logger.warning(
                 f"Skipped L1 analysis for {satname} (no L1 signal available)"
@@ -218,7 +222,7 @@ def main():
             logger.debug(f"Saved {out_figfile}")
         else:
             logger.warning(
-                f"Skipped L5 analysis for {satname} (no L5 signal available)"
+                "Skipped L5 analysis for %s (no L5 signal available)", satname
             )
 
         fig, axes = plot_ambiguity_single_sat_single_rec(rnxobs, satname)

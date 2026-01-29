@@ -13,6 +13,47 @@ logger = getLogger(__name__)
 # logger = logger.opt(depth=1)
 
 
+def signal_code_check(rnxobs):
+    """
+    Check available signal codes in the RINEX observation data.
+
+    Args:
+        rnxobs: RINEX observation data
+    Returns:
+        dict: Dictionary with frequency prefixes as keys and list of available signal codes as values.
+              Example: {
+                  'G': {
+                      'L1': 'C',
+                      'L2': 'C',
+                      'L5': 'I'
+                    },
+                    'E': {
+                      'L1': 'C',
+                      'L5': 'I'
+                      'L5A': 'Q'
+                      'L5B': 'X'
+                    },
+                ....
+              }
+    """
+    available_obs = list(rnxobs.data_vars)
+    signal_codes = {}
+
+    for obs in available_obs:
+        if obs.startswith("L"):
+            freq_prefix = obs[:2]  # e.g., 'L1', 'L2', 'L5'
+            code = obs[2:]  # e.g., 'C', 'I', 'Q'
+            if freq_prefix not in signal_codes:
+                signal_codes[freq_prefix] = set()
+            signal_codes[freq_prefix].add(code)
+
+    # Convert sets to sorted lists
+    for freq in signal_codes:
+        signal_codes[freq] = sorted(list(signal_codes[freq]))
+
+    return signal_codes
+
+
 def get_available_signal_code(rnxobs, satname: str, freq_prefix: str):
     """
     Get available signal code for a given frequency prefix (e.g., 'L5', 'L2', 'L1').
