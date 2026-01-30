@@ -1,11 +1,14 @@
 import argparse
-import json
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO
 
 import matplotlib.pyplot as plt
 
-from app.gnss.satellite_signals import parse_rinex_observation_file
+from app.gnss.satellite_signals import (
+    EpochObservations,
+    parse_rinex_observation_file,
+    save_gnss_observations_to_json,
+)
 
 logger = getLogger(__name__)
 
@@ -61,24 +64,6 @@ def convert_epochs_to_json(epochs):
         result.append(epoch_dict)
 
     return result
-
-
-def save_to_json(epochs, output_file: Path):
-    """
-    Save epochs data to JSON file.
-
-    Args:
-        epochs: List of EpochObservations
-        output_file: Path to output JSON file
-    """
-    logger.info("Converting data to JSON format...")
-    json_data = convert_epochs_to_json(epochs)
-
-    logger.info(f"Writing JSON to {output_file}...")
-    with open(output_file, "w") as f:
-        json.dump(json_data, f, indent=2)
-
-    logger.info(f"Saved JSON to {output_file}")
 
 
 def plot_satellite_observations(epochs, output_dir: Path):
@@ -341,13 +326,14 @@ def main():
 
     # Parse RINEX file
     logger.info(f"Parsing RINEX file: {rinex_path}")
-    epochs = parse_rinex_observation_file(str(rinex_path))
+    epochs: list[EpochObservations] = parse_rinex_observation_file(str(rinex_path))
     logger.info(f"Parsed {len(epochs)} epochs")
 
     # Save to JSON if requested
     if args.json:
         json_output_path = Path(args.json)
-        save_to_json(epochs, json_output_path)
+        save_gnss_observations_to_json(epochs, json_output_path)
+        logger.info(f"Saved parsed data to JSON: {json_output_path}")
 
     # Generate plots
     logger.info("Generating plots...")
