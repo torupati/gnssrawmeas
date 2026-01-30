@@ -66,7 +66,7 @@ def convert_epochs_to_json(epochs):
     return result
 
 
-def plot_satellite_observations(epochs, output_dir: Path):
+def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
     """
     Plot observations for each satellite.
 
@@ -163,13 +163,49 @@ def plot_satellite_observations(epochs, output_dir: Path):
     for sat_id, data in satellite_data.items():
         logger.info(f"Plotting satellite {sat_id}")
 
+        # Determine common time range across all plots for this satellite
+        all_times = []
+        for band_data in data["pseudorange"].values():
+            all_times.extend(band_data["times"])
+        for band_data in data["carrier_phase"].values():
+            all_times.extend(band_data["times"])
+        for band_data in data["doppler"].values():
+            all_times.extend(band_data["times"])
+        for band_data in data["snr"].values():
+            all_times.extend(band_data["times"])
+        for comb_data in data["ambiguities"].values():
+            all_times.extend(comb_data["widelane"]["times"])
+            all_times.extend(comb_data["ionofree"]["times"])
+        if all_times:
+            common_start = min(all_times)
+            common_end = max(all_times)
+        else:
+            common_start = None
+            common_end = None
+
         # Check if ambiguity data is available and count combinations
         num_ambiguity_combos = len(data["ambiguities"])
         has_ambiguity = num_ambiguity_combos > 0
 
+        show_basic = plot_mode in {1, 4}
+        show_snr = plot_mode in {1, 2, 3, 4}
+        show_widelane = plot_mode in {1, 2, 3}
+        show_ionofree = plot_mode in {1, 3}
+
+        if plot_mode == 4:
+            has_ambiguity = False
+
         # Create a figure with variable subplots
-        # 4 basic plots + 2 plots per ambiguity combination
-        num_rows = 4 + (2 * num_ambiguity_combos)
+        num_rows = 0
+        if show_basic:
+            num_rows += 3  # pseudorange, carrier phase, doppler
+        if show_snr:
+            num_rows += 1
+        if has_ambiguity:
+            if show_widelane:
+                num_rows += num_ambiguity_combos
+            if show_ionofree:
+                num_rows += num_ambiguity_combos
         fig, axes = plt.subplots(num_rows, 1, figsize=(12, 3 * num_rows), sharex=True)
         fig.suptitle(f"Satellite {sat_id} Observations", fontsize=16)
 
@@ -177,63 +213,72 @@ def plot_satellite_observations(epochs, output_dir: Path):
         if num_rows == 1:
             axes = [axes]
 
+        plot_idx = 0
+
         # Plot pseudorange
-        for band_name, band_data in data["pseudorange"].items():
-            if band_data["values"]:
-                axes[0].plot(
-                    band_data["times"],
-                    band_data["values"],
-                    marker=".",
-                    label=f"L{band_name}",
-                )
-        axes[0].set_ylabel("Pseudorange (m)")
-        axes[0].legend()
-        axes[0].grid(True)
+        if show_basic:
+            for band_name, band_data in data["pseudorange"].items():
+                if band_data["values"]:
+                    axes[plot_idx].plot(
+                        band_data["times"],
+                        band_data["values"],
+                        marker=".",
+                        linestyle="None",
+                        label=f"L{band_name}",
+                    )
+            axes[plot_idx].set_ylabel("Pseudorange (m)")
+            axes[plot_idx].legend()
+            axes[plot_idx].grid(True)
+            plot_idx += 1
 
-        # Plot carrier phase
-        for band_name, band_data in data["carrier_phase"].items():
-            if band_data["values"]:
-                axes[1].plot(
-                    band_data["times"],
-                    band_data["values"],
-                    marker=".",
-                    label=f"L{band_name}",
-                )
-        axes[1].set_ylabel("Carrier Phase (cycles)")
-        axes[1].legend()
-        axes[1].grid(True)
+            # Plot carrier phase
+            for band_name, band_data in data["carrier_phase"].items():
+                if band_data["values"]:
+                    axes[plot_idx].plot(
+                        band_data["times"],
+                        band_data["values"],
+                        marker=".",
+                        linestyle="None",
+                        label=f"L{band_name}",
+                    )
+            axes[plot_idx].set_ylabel("Carrier Phase (cycles)")
+            axes[plot_idx].legend()
+            axes[plot_idx].grid(True)
+            plot_idx += 1
 
-        # Plot doppler
-        for band_name, band_data in data["doppler"].items():
-            if band_data["values"]:
-                axes[2].plot(
-                    band_data["times"],
-                    band_data["values"],
-                    marker=".",
-                    label=f"L{band_name}",
-                )
-        axes[2].set_ylabel("Doppler (Hz)")
-        axes[2].legend()
-        axes[2].grid(True)
+            # Plot doppler
+            for band_name, band_data in data["doppler"].items():
+                if band_data["values"]:
+                    axes[plot_idx].plot(
+                        band_data["times"],
+                        band_data["values"],
+                        marker=".",
+                        linestyle="None",
+                        label=f"L{band_name}",
+                    )
+            axes[plot_idx].set_ylabel("Doppler (Hz)")
+            axes[plot_idx].legend()
+            axes[plot_idx].grid(True)
+            plot_idx += 1
 
         # Plot SNR
-        for band_name, band_data in data["snr"].items():
-            if band_data["values"]:
-                axes[3].plot(
-                    band_data["times"],
-                    band_data["values"],
-                    marker=".",
-                    label=f"L{band_name}",
-                )
-        axes[3].set_ylabel("SNR (dB-Hz)")
-        if not has_ambiguity:
-            axes[3].set_xlabel("Time")
-        axes[3].legend()
-        axes[3].grid(True)
+        if show_snr:
+            for band_name, band_data in data["snr"].items():
+                if band_data["values"]:
+                    axes[plot_idx].plot(
+                        band_data["times"],
+                        band_data["values"],
+                        marker=".",
+                        linestyle="None",
+                        label=f"L{band_name}",
+                    )
+            axes[plot_idx].set_ylabel("SNR (dB-Hz)")
+            axes[plot_idx].legend()
+            axes[plot_idx].grid(True)
+            plot_idx += 1
 
         # Plot ambiguity data for each combination
         if has_ambiguity:
-            plot_idx = 4
             colors = ["purple", "orange", "green", "red", "blue", "brown"]
             for comb_idx, (comb_name, comb_data) in enumerate(
                 data["ambiguities"].items()
@@ -242,46 +287,55 @@ def plot_satellite_observations(epochs, output_dir: Path):
                 color_if = colors[(comb_idx * 2 + 1) % len(colors)]
 
                 # Plot widelane ambiguity for this combination
-                wl_times = comb_data["widelane"]["times"]
-                wl_values = comb_data["widelane"]["values"]
-                if wl_values:
-                    axes[plot_idx].plot(
-                        wl_times,
-                        wl_values,
-                        marker=".",
-                        label=f"{comb_name} WL",
-                        color=color_wl,
-                    )
-                axes[plot_idx].set_ylabel(f"Widelane {comb_name} (cycles)")
-                axes[plot_idx].legend()
-                axes[plot_idx].grid(True)
-                plot_idx += 1
+                if show_widelane:
+                    wl_times = comb_data["widelane"]["times"]
+                    wl_values = comb_data["widelane"]["values"]
+                    if wl_values:
+                        axes[plot_idx].plot(
+                            wl_times,
+                            wl_values,
+                            marker=".",
+                            linestyle="None",
+                            label=f"{comb_name} WL",
+                            color=color_wl,
+                        )
+                    axes[plot_idx].set_ylabel(f"Widelane {comb_name} (cycles)")
+                    axes[plot_idx].legend()
+                    axes[plot_idx].grid(True)
+                    plot_idx += 1
 
                 # Plot ionofree ambiguity for this combination
-                if_times = comb_data["ionofree"]["times"]
-                if_values = comb_data["ionofree"]["values"]
-                if if_values:
-                    axes[plot_idx].plot(
-                        if_times,
-                        if_values,
-                        marker=".",
-                        label=f"{comb_name} IF",
-                        color=color_if,
-                    )
-                axes[plot_idx].set_ylabel(f"Ionofree {comb_name} (cycles)")
-                if plot_idx == num_rows - 1:  # Last plot
-                    axes[plot_idx].set_xlabel("Time")
-                axes[plot_idx].legend()
-                axes[plot_idx].grid(True)
-                plot_idx += 1
+                if show_ionofree:
+                    if_times = comb_data["ionofree"]["times"]
+                    if_values = comb_data["ionofree"]["values"]
+                    if if_values:
+                        axes[plot_idx].plot(
+                            if_times,
+                            if_values,
+                            marker=".",
+                            linestyle="None",
+                            label=f"{comb_name} IF",
+                            color=color_if,
+                        )
+                    axes[plot_idx].set_ylabel(f"Ionofree {comb_name} (cycles)")
+                    axes[plot_idx].legend()
+                    axes[plot_idx].grid(True)
+                    plot_idx += 1
 
             # Rotate x-axis labels for better readability
             plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha="right")
         else:
             # Rotate x-axis labels for better readability
-            plt.setp(axes[3].xaxis.get_majorticklabels(), rotation=45, ha="right")
+            plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha="right")
 
         plt.tight_layout()
+
+        if common_start is not None and common_end is not None:
+            for ax in axes:
+                ax.set_xlim(common_start, common_end)
+
+        if len(axes) > 0:
+            axes[-1].set_xlabel("Time")
 
         # Save the plot
         output_file = output_dir / f"{sat_id}_observations.png"
@@ -306,6 +360,16 @@ def main():
         "--json",
         type=str,
         help="Save parsed data to JSON file (specify output file path)",
+    )
+    parser.add_argument(
+        "--plot-mode",
+        type=int,
+        choices=[1, 2, 3, 4],
+        default=1,
+        help=(
+            "Plot data selection: 1=all, 2=SNR+widelane only, "
+            "3=SNR+widelane+ionofree only, 4=PR+CP+Doppler+SNR only"
+        ),
     )
 
     args = parser.parse_args()
@@ -337,7 +401,7 @@ def main():
 
     # Generate plots
     logger.info("Generating plots...")
-    plot_satellite_observations(epochs, output_dir)
+    plot_satellite_observations(epochs, output_dir, plot_mode=args.plot_mode)
 
     logger.info("Done!")
     return 0
