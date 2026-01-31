@@ -21,6 +21,10 @@ E8_FREQ: float = 1.191795e9  # E5(A+B) blended frequency
 wlen_L1: float = CLIGHT / L1_FREQ
 wlen_L2: float = CLIGHT / L2_FREQ
 wlen_L5: float = CLIGHT / L5_FREQ
+wlen_L7: float = CLIGHT / E5B_FREQ  # Galileo E5B
+wlen_L8: float = CLIGHT / E8_FREQ  # Galileo E8
+
+### obsolete constants below; kept for reference ###
 
 # Wide- and Narrow-lane effective wavelengths (m)
 wl_wlen: float = CLIGHT / (L1_FREQ - L2_FREQ)
