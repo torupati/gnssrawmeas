@@ -14,59 +14,6 @@ from app.gnss.satellite_signals import (
 logger = getLogger(__name__)
 
 
-def convert_epochs_to_json(epochs):
-    """
-    Convert epochs data to JSON-serializable format.
-
-    Args:
-        epochs: List of EpochObservations
-
-    Returns:
-        List of dictionaries ready for JSON serialization
-    """
-    result = []
-
-    for epoch in epochs:
-        epoch_dict = {"datetime": epoch.datetime.isoformat(), "satellites": []}
-
-        # Process all GNSS systems
-        for sat_list, system_code in [
-            (epoch.satellites_gps, "G"),
-            (epoch.satellites_qzss, "Q"),
-            (epoch.satellites_galileo, "E"),
-            (epoch.satellites_glonass, "R"),
-        ]:
-            for sat_obs in sat_list:
-                sat_dict = {
-                    "system": system_code,
-                    "prn": sat_obs.prn,
-                    "signals": {},
-                    "ambiguities": {},
-                }
-
-                # Add signal observations
-                for band_name, signal_obs in sat_obs.signals.items():
-                    sat_dict["signals"][band_name] = {
-                        "pseudorange": signal_obs.pseudorange,
-                        "carrier_phase": signal_obs.carrier_phase,
-                        "doppler": signal_obs.doppler_,
-                        "snr": signal_obs.snr,
-                    }
-
-                # Add ambiguity observations
-                for comb_name, amb_obs in sat_obs.ambiguities.items():
-                    sat_dict["ambiguities"][comb_name] = {
-                        "widelane": amb_obs.widelane,
-                        "ionofree": amb_obs.ionofree,
-                    }
-
-                epoch_dict["satellites"].append(sat_dict)
-
-        result.append(epoch_dict)
-
-    return result
-
-
 def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
     """
     Plot observations for each satellite.

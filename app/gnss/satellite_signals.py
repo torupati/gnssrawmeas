@@ -68,18 +68,6 @@ class EpochObservations:
     satellites_glonass: list[SatelliteObservation]
 
 
-band_frequencies = {
-    "L1": 1575.42e6,
-    "L2": 1227.60e6,
-    "L5": 1176.45e6,
-}
-band_names = {
-    "L1": "L1",
-    "L2": "L2",
-    "L5": "L5",
-}
-
-
 def compute_dual_frequency_ambiguity(
     pr_f1: float,
     cp_f1: float,
@@ -338,6 +326,59 @@ def save_gnss_observations_to_json(
             "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
         }
         json.dump(output_data, f, indent=2)
+
+
+def convert_epochs_to_json(epochs):
+    """
+    Convert epochs data to JSON-serializable format.
+
+    Args:
+        epochs: List of EpochObservations
+
+    Returns:
+        List of dictionaries ready for JSON serialization
+    """
+    result = []
+
+    for epoch in epochs:
+        epoch_dict = {"datetime": epoch.datetime.isoformat(), "satellites": []}
+
+        # Process all GNSS systems
+        for sat_list, system_code in [
+            (epoch.satellites_gps, "G"),
+            (epoch.satellites_qzss, "Q"),
+            (epoch.satellites_galileo, "E"),
+            (epoch.satellites_glonass, "R"),
+        ]:
+            for sat_obs in sat_list:
+                sat_dict = {
+                    "system": system_code,
+                    "prn": sat_obs.prn,
+                    "signals": {},
+                    "ambiguities": {},
+                }
+
+                # Add signal observations
+                for band_name, signal_obs in sat_obs.signals.items():
+                    sat_dict["signals"][band_name] = {
+                        "pseudorange": signal_obs.pseudorange,
+                        "carrier_phase": signal_obs.carrier_phase,
+                        "doppler": signal_obs.doppler_,
+                        "snr": signal_obs.snr,
+                    }
+
+                # Add ambiguity observations
+                for comb_name, amb_obs in sat_obs.ambiguities.items():
+                    sat_dict["ambiguities"][comb_name] = {
+                        "widelane": amb_obs.widelane,
+                        "ionofree": amb_obs.ionofree,
+                    }
+
+                epoch_dict["satellites"].append(sat_dict)
+
+        result.append(epoch_dict)
+
+    return result
 
 
 # ------------------------------------------------------------
