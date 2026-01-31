@@ -78,33 +78,6 @@ band_names = {
     "L2": "L2",
     "L5": "L5",
 }
-# signal_code_map: key is (band_number, signal_code) for observation codes like C1C, L1C, C5X, L5X
-signal_code_map = {
-    "GPS": [
-        ("1", "C"),  # C1C, L1C, D1C, S1C
-        ("2", "W"),  # C2W, L2W, D2W, S2W
-        ("2", "X"),  # C2X, L2X, D2X, S2X
-        ("5", "X"),  # C5X, L5X, D5X, S5X
-    ],
-    "GLONASS": [
-        ("1", "C"),  # C1C, L1C, D1C, S1C
-        ("1", "P"),  # C1P, L1P, D1P, S1P
-        ("2", "C"),  # C2C, L2C, D2C, S2C
-        ("2", "P"),  # C2P, L2P, D2P, S2P
-    ],
-    "Galileo": [
-        ("1", "X"),  # C1X, L1X, D1X, S1X
-        ("5", "X"),  # C5X, L5X, D5X, S5X
-        ("7", "X"),  # C7X, L7X, D7X, S7X
-        ("8", "X"),  # C8X, L8X, D8X, S8X
-    ],
-    "QZSS": [
-        ("1", "C"),  # C1C, L1C, D1C, S1C
-        ("1", "X"),  # C1X, L1X, D1X, S1X
-        ("2", "X"),  # C2X, L2X, D2X, S2X
-        ("5", "X"),  # C5X, L5X, D5X, S5X
-    ],
-}
 
 
 def compute_dual_frequency_ambiguity(
@@ -234,12 +207,17 @@ def compute_ambiguities_for_satellite(
     return ambiguities
 
 
-def parse_rinex_observation_file(file_path: str) -> list[EpochObservations]:
+def parse_rinex_observation_file(
+    file_path: str,
+    signal_code_map: dict[str, list[list[str]]],
+) -> list[EpochObservations]:
     """
     Parse a RINEX observation file and return a list of EpochObservations.
 
     Args:
         file_path: Path to the RINEX observation file.
+        signal_code_map: Mapping of system name to list of [band_number, signal_code]
+            pairs for observation codes like C1C, L1C, C5X, L5X.
     Returns:
         List of EpochObservations containing satellite observations per epoch.
     """
@@ -276,6 +254,8 @@ def parse_rinex_observation_file(file_path: str) -> list[EpochObservations]:
             ]:
                 if not sv.startswith(system_code):
                     continue
+                if system_name not in signal_code_map:
+                    raise KeyError(f"signal_code_map missing system: {system_name}")
                 # Extract signal observations (pseudorange, carrier phase, etc.)
                 for band_number, signal_code in signal_code_map[system_name]:
                     pr_key = f"C{band_number}{signal_code}"

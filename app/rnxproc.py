@@ -1,4 +1,5 @@
 import argparse
+import json
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO
 
@@ -371,6 +372,15 @@ def main():
             "3=SNR+widelane+ionofree only, 4=PR+CP+Doppler+SNR only"
         ),
     )
+    parser.add_argument(
+        "--signal-code-map",
+        type=str,
+        default=str(Path(__file__).parent / "gnss" / "signal_code_map.json"),
+        help=(
+            "Path to JSON file that defines signal_code_map "
+            "(default: app/gnss/signal_code_map.json)"
+        ),
+    )
 
     args = parser.parse_args()
 
@@ -388,9 +398,25 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
+    # Load signal code map
+    signal_code_map_path = Path(args.signal_code_map)
+    if not signal_code_map_path.exists():
+        logger.error(f"Signal code map file not found: {signal_code_map_path}")
+        return 1
+    try:
+        with signal_code_map_path.open("r", encoding="utf-8") as f:
+            signal_code_map = json.load(f)
+    except json.JSONDecodeError as exc:
+        logger.error(
+            f"Invalid JSON in signal code map file: {signal_code_map_path} ({exc})"
+        )
+        return 1
+
     # Parse RINEX file
     logger.info(f"Parsing RINEX file: {rinex_path}")
-    epochs: list[EpochObservations] = parse_rinex_observation_file(str(rinex_path))
+    epochs: list[EpochObservations] = parse_rinex_observation_file(
+        str(rinex_path), signal_code_map
+    )
     logger.info(f"Parsed {len(epochs)} epochs")
 
     # Save to JSON if requested
