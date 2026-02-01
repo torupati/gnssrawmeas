@@ -320,6 +320,11 @@ def main():
         ),
     )
     parser.add_argument(
+        "--skip-plot",
+        action="store_true",
+        help="Skip generating plots",
+    )
+    parser.add_argument(
         "--signal-code-map",
         type=str,
         default=str(Path(__file__).parent / "gnss" / "signal_code_map.json"),
@@ -373,8 +378,11 @@ def main():
         logger.info(f"Saved parsed data to JSON: {json_output_path}")
 
     # Generate plots
-    logger.info("Generating plots...")
-    plot_satellite_observations(epochs, output_dir, plot_mode=args.plot_mode)
+    if args.skip_plot:
+        logger.info("Skipping plot generation (--skip-plot)")
+    else:
+        logger.info("Generating plots...")
+        plot_satellite_observations(epochs, output_dir, plot_mode=args.plot_mode)
 
     logger.info("Done!")
     return 0
