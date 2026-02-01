@@ -4,6 +4,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 
@@ -289,9 +290,6 @@ def plot_paired_satellite_observations(
             for comb_data in data["ambiguities"].values():
                 all_times.extend(comb_data["widelane"]["times"])
                 all_times.extend(comb_data["ionofree"]["times"])
-
-        #        common_start = min(all_times) if all_times else None
-        #        common_end = max(all_times) if all_times else None
 
         num_ambiguity_combos = len(
             set(data_left["ambiguities"].keys()) | set(data_right["ambiguities"].keys())
@@ -686,6 +684,82 @@ def _print_common_non_l1_signals(paired_epochs: list[PairedObservation]):
             print("  (no common non-L1 signals)")
 
 
+def _calc_mean_variance(values: list[float]) -> tuple[float, float]:
+    if not values:
+        return 0.0, 0.0
+    mean = sum(values) / len(values)
+    var = sum((v - mean) ** 2 for v in values) / len(values)
+    return mean, var
+
+
+def _print_combined_ambiguity_stats(paired_epochs: list[PairedObservation]):
+    stats: dict[tuple[str, str, str], dict[str, list[float]]] = {}
+    for pair in paired_epochs:
+        if not pair.combined_observations:
+            continue
+        for entry in pair.combined_observations:
+            sat1 = entry.get("sat1")
+            sat2 = entry.get("sat2")
+            comb = entry.get("combination")
+            if not (sat1 and sat2 and comb):
+                continue
+            key = (sat1, sat2, comb)
+            if key not in stats:
+                stats[key] = {"widelane": [], "ionofree": []}
+            widelane = entry.get("widelane")
+            ionofree = entry.get("ionofree")
+            if widelane is not None:
+                stats[key]["widelane"].append(widelane)
+            if ionofree is not None:
+                stats[key]["ionofree"].append(ionofree)
+
+    print("\n[Combined Ambiguity Stats] sat1-sat2 / band")
+    if not stats:
+        print("  (no combined ambiguity observations)")
+        return
+
+    for sat1, sat2, comb in sorted(stats.keys()):
+        wl_values = stats[(sat1, sat2, comb)]["widelane"]
+        if_values = stats[(sat1, sat2, comb)]["ionofree"]
+        wl_mean, wl_var = _calc_mean_variance(wl_values)
+        if_mean, if_var = _calc_mean_variance(if_values)
+        print(
+            f"  {sat1}-{sat2} {comb} | "
+            f"WL mean={wl_mean:.6f} var={wl_var:.6f} n={len(wl_values)} | "
+            f"IF mean={if_mean:.6f} var={if_var:.6f} n={len(if_values)}"
+        )
+
+
+def _print_epoch_ambiguity_stats(label: str, epochs: list[EpochObservations]):
+    stats: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(
+        lambda: {"widelane": [], "ionofree": []}
+    )
+
+    for epoch in epochs:
+        for sat_id, sat_obs in epoch.iter_satellites():
+            for comb_name, amb_obs in sat_obs.ambiguities.items():
+                if amb_obs.widelane is not None:
+                    stats[(sat_id, comb_name)]["widelane"].append(amb_obs.widelane)
+                if amb_obs.ionofree is not None:
+                    stats[(sat_id, comb_name)]["ionofree"].append(amb_obs.ionofree)
+
+    print(f"\n[Epoch Ambiguity Stats] {label}")
+    if not stats:
+        print("  (no ambiguity observations)")
+        return
+
+    for sat_id, comb_name in sorted(stats.keys()):
+        wl_values = stats[(sat_id, comb_name)]["widelane"]
+        if_values = stats[(sat_id, comb_name)]["ionofree"]
+        wl_mean, wl_var = _calc_mean_variance(wl_values)
+        if_mean, if_var = _calc_mean_variance(if_values)
+        print(
+            f"  {sat_id} {comb_name} | "
+            f"WL mean={wl_mean:.6f} var={wl_var:.6f} n={len(wl_values)} | "
+            f"IF mean={if_mean:.6f} var={if_var:.6f} n={len(if_values)}"
+        )
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Pair RINEX observation files and list common non-L1 signals"
@@ -799,6 +873,9 @@ def main():
         json.dump(_paired_observations_to_json(paired), f, indent=2)
     logger.info(f"Saved paired observations to JSON: {paired_json_path}")
     _print_common_non_l1_signals(paired)
+    _print_combined_ambiguity_stats(paired)
+    _print_epoch_ambiguity_stats("input epochs", epochs)
+    _print_epoch_ambiguity_stats("reference epochs", ref_epochs)
 
     output_dir = Path(args.outdir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -811,6 +888,7 @@ def main():
         plot_paired_satellite_observations(paired, output_dir, plot_mode=args.plot_mode)
         logger.info("Generating combined observation plots...")
         plot_combined_observations(paired, output_dir, plot_mode=args.plot_mode)
+
     return 0
 
 
