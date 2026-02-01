@@ -1,195 +1,387 @@
-from typing import Optional
 from logging import getLogger
+import warnings
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Optional, List, Dict
 
 import numpy as np
-from georinex import rinexobs
+
+import georinex as gr
+
+from app.gnss.constants import (
+    CLIGHT,
+    L1_FREQ,
+    L2_FREQ,
+    L5_FREQ,
+    E5B_FREQ,
+    E8_FREQ,
+    wlen_L1,
+    wlen_L2,
+    wlen_L5,
+    wlen_L7,
+    wlen_L8,
+)
 
 logger = getLogger(__name__)
 
-# from logre import logger
-# logger = logger.bind(module="satellite_signals")
-# logger = logger.opt(depth=1)
+# Suppress FutureWarnings from xarray/georinex
+warnings.filterwarnings("ignore", category=FutureWarning, module="georinex")
+warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
 
 
-def get_available_signal_code(rnxobs, satname: str, freq_prefix: str):
+@dataclass
+class SatelliteSignalObservation:
+    pseudorange: float  # in meters
+    carrier_phase: float  # in cycles
+    doppler_: float  # in Hz
+    snr: float  # in dB-Hz
+
+
+@dataclass
+class AmbiguityObservation:
+    widelane: float  # in cycle
+    ionofree: float  # in cycle
+
+
+@dataclass
+class SatelliteObservation:
+    prn: int
+    signals: dict  # key: band (str), value: SatelliteSignalObservation
+    ambiguities: (
+        dict  # key: combination (str like "L1_L2"), value: AmbiguityObservation
+    )
+
+    def add_signal_observation(
+        self, band_name: str, signal_obs: SatelliteSignalObservation
+    ):
+        self.signals[band_name] = signal_obs
+
+
+@dataclass
+class EpochObservations:
+    """GNSS observations for a single epoch.
+    Attributes:
+        datetime: Observation epoch time (UTC)
+        satellites_gps: List of SatelliteObservation for GPS satellites
+        satellites_qzss: List of SatelliteObservation for QZSS satellites
+        satellites_galileo: List of SatelliteObservation for Galileo satellites
+        satellites_glonass: List of SatelliteObservation for GLONASS satellites
     """
-    Get available signal code for a given frequency prefix (e.g., 'L5', 'L2', 'L1').
-    Returns the signal code suffix (e.g., 'X', 'I', 'Q', 'C') if available.
 
-    Args:
-        rnxobs: RINEX observation data
-        satname: Satellite name (e.g., 'G01')
-        freq_prefix: Frequency prefix (e.g., 'L5', 'L2', 'L1')
+    datetime: datetime
+    satellites_gps: list[SatelliteObservation]
+    satellites_qzss: list[SatelliteObservation]
+    satellites_galileo: list[SatelliteObservation]
+    satellites_glonass: list[SatelliteObservation]
 
-    Returns:
-        Signal code suffix (e.g., 'X', 'I', 'Q') or None if not available
-    """
-    # Check available observation types
-    available_obs = list(rnxobs.data_vars)
-
-    # Find carrier phase observations starting with the frequency prefix
-    carrier_phases = [obs for obs in available_obs if obs.startswith(freq_prefix)]
-
-    if not carrier_phases:
-        return None
-
-    # Priority order for signal codes (prefer I, then X, then Q, then others)
-    priority_codes = ["I", "X", "Q", "C"]
-
-    # First, try priority codes
-    for code in priority_codes:
-        cp_obs = f"{freq_prefix}{code}"
-        if cp_obs in carrier_phases:
-            try:
-                data = rnxobs[cp_obs].sel(sv=satname)
-                if not data.isnull().all():
-                    # Extract frequency number (e.g., '5' from 'L5')
-                    freq_num = freq_prefix[1:]
-
-                    # Check if corresponding pseudorange and doppler exist
-                    pr_obs = f"C{freq_num}{code}"
-                    dp_obs = f"D{freq_num}{code}"
-
-                    if pr_obs in available_obs and dp_obs in available_obs:
-                        return code
-            except (KeyError, ValueError):
-                continue
-
-    # If no priority code works, try any available carrier phase
-    for cp_obs in carrier_phases:
-        try:
-            data = rnxobs[cp_obs].sel(sv=satname)
-            if not data.isnull().all():
-                signal_code = cp_obs[len(freq_prefix) :]
-                freq_num = freq_prefix[1:]
-
-                pr_obs = f"C{freq_num}{signal_code}"
-                dp_obs = f"D{freq_num}{signal_code}"
-
-                if pr_obs in available_obs and dp_obs in available_obs:
-                    return signal_code
-        except (KeyError, ValueError):
-            continue
-
-    return None
-
-
-def get_satellites_sorted_by_signal_strength(
-    rnxobs: rinexobs, signal_type: str = "S1C", constellation: Optional[str] = None
-) -> dict:
-    """
-    Sort satellites by signal strength for each epoch.
-
-    Args:
-        rnxobs (rinexobs): GNSS observation data
-        signal_type (str): Signal strength indicator (default: "S1C")
-        constellation (str): Constellation type filter (e.g., "G", "J", "E").
-                           None for all constellations.
-
-    Returns:
-        dict: Dictionary with time as keys and list of (satellite, signal_strength)
-              tuples sorted by signal strength (descending order) as values.
-              Example: {
-                  np.datetime64('2023-01-01T00:00:00'): [('G01', 45.0), ('G02', 43.5), ...],
-                  ...
-              }
-    """
-    # Get signal strength data
-    if signal_type not in rnxobs:
-        raise ValueError(
-            f"Signal type '{signal_type}' not found in RINEX observation data"
+    def __str__(self):
+        return (
+            f"EpochObservations(datetime={self.datetime}, "
+            f"GPS_sats={len(self.satellites_gps)}, "
+            f"QZSS_sats={len(self.satellites_qzss)}, "
+            f"Galileo_sats={len(self.satellites_galileo)}, "
+            f"GLONASS_sats={len(self.satellites_glonass)})"
         )
 
-    signal_data = rnxobs[signal_type]
-
-    # Get satellite list
-    sv_list = [str(s) for s in rnxobs.sv.values]
-
-    # Filter by constellation
-    if constellation and constellation != "a":
-        sv_list = [sv for sv in sv_list if sv.startswith(constellation)]
-
-    # Process for each epoch
-    sorted_by_epoch = {}
-
-    for time_idx, time_val in enumerate(rnxobs.time.values):
-        satellite_strengths = []
-
-        for sv in sv_list:
-            try:
-                # Get signal strength
-                strength = float(signal_data.sel(sv=sv, time=time_val).values)
-
-                # Add to list only if not NaN
-                if not np.isnan(strength):
-                    satellite_strengths.append((sv, strength))
-            except (KeyError, ValueError):
-                # Skip if satellite data does not exist
-                continue
-
-        # Sort in descending order by signal strength
-        satellite_strengths.sort(key=lambda x: x[1], reverse=True)
-        sorted_by_epoch[time_val] = satellite_strengths
-
-    return sorted_by_epoch
+    def iter_satellites(self):
+        """Iterate over all satellites in the epoch, yielding (sat_id, sat_obs)."""
+        for sat_list, system_code in [
+            (self.satellites_gps, "G"),
+            (self.satellites_qzss, "J"),
+            (self.satellites_galileo, "E"),
+            (self.satellites_glonass, "R"),
+        ]:
+            for sat_obs in sat_list:
+                sat_id = f"{system_code}{sat_obs.prn:02d}"
+                yield sat_id, sat_obs
 
 
-def get_satellite_pairs_by_signal_strength(
-    rnxobs: rinexobs,
-    signal_type: str = "S1C",
-    constellation: Optional[str] = None,
-    top_n: Optional[int] = None,
-) -> list[tuple[str, str]]:
+@dataclass
+class PairedObservation:
+    """Paired GNSS observations for a single epoch.
+    This is used for comparing two sets of observations (e.g., from two receivers).
+    Attributes:
+        epoch: Epoch identifier as a string
+        datetime: Observation epoch time (UTC)
+        observation: Primary EpochObservations
+        ref_observation: Reference EpochObservations
+        combined_observations: Optional list of combined observation dicts
     """
-    Generate satellite pairs based on signal strength.
 
-    Create pairs with other satellites using the satellite with the highest signal strength at each epoch as a reference.
+    epoch: str
+    datetime: datetime
+    observation: EpochObservations
+    ref_observation: EpochObservations
+    combined_observations: Optional[List[Dict]] = (
+        None  # list of combined observation dicts
+    )
+
+    @property
+    def time_str(self) -> str:
+        return self.datetime.strftime("%Y-%m-%d %H:%M:%S")
+
+    @property
+    def age_seconds(self) -> float:
+        return (self.datetime - self.ref_observation.datetime).total_seconds()
+
+
+def compute_dual_frequency_ambiguity(
+    pr_f1: float,
+    cp_f1: float,
+    pr_f2: float,
+    cp_f2: float,
+    freq1: float,
+    freq2: float,
+    wlen1: float,
+    wlen2: float,
+) -> AmbiguityObservation:
+    """
+    Compute widelane and ionofree ambiguity for dual-frequency observations.
 
     Args:
-        rnxobs (rinexobs): GNSS observation data
-        signal_type (str): Signal strength indicator (default: "S1C")
-        constellation (str): Constellation type filter (e.g., "G", "J", "E")
-        top_n (int): Consider only top N satellites. None for all satellites.
-
+        pr_f1: Pseudorange for frequency 1 (meters)
+        cp_f1: Carrier phase for frequency 1 (cycles)
+        pr_f2: Pseudorange for frequency 2 (meters)
+        cp_f2: Carrier phase for frequency 2 (cycles)
+        freq1: Frequency 1 (Hz)
+        freq2: Frequency 2 (Hz)
+        wlen1: Wavelength 1 (meters)
+        wlen2: Wavelength 2 (meters)
     Returns:
-        list: List of satellite pairs sorted by combined signal strength.
-              Example: [('G01', 'G02'), ('G01', 'G03'), ...]
+        AmbiguityObservation with widelane and ionofree ambiguities in cycles
     """
-    sorted_by_epoch = get_satellites_sorted_by_signal_strength(
-        rnxobs, signal_type, constellation
+    # Compute widelane ambiguity (cycles)
+    wl_wlen = CLIGHT / (freq1 - freq2)
+    nl_pr = freq1 / (freq1 + freq2) * pr_f1 + freq2 / (freq1 + freq2) * pr_f2
+    wl_cp = cp_f1 - cp_f2
+    amb_wl = wl_cp - nl_pr / wl_wlen
+
+    # Compute ionofree ambiguity (cycles)
+    pr_if = (freq1**2 * pr_f1 - freq2**2 * pr_f2) / (freq1**2 - freq2**2)
+    cp_if = (freq1**2 * wlen1 * cp_f1 - freq2**2 * wlen2 * cp_f2) / (
+        freq1**2 - freq2**2
+    )
+    amb_iono = (cp_if - pr_if) / (
+        (freq1**2) / (freq1**2 - freq2**2) * wlen1
+        + (freq2**2) / (freq1**2 - freq2**2) * wlen2
     )
 
-    # Calculate average signal strength across all epochs
-    satellite_avg_strength_lists: dict[str, list[float]] = {}
+    return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono)
 
-    for time_val, sat_list in sorted_by_epoch.items():
-        for sv, strength in sat_list:
-            if sv not in satellite_avg_strength_lists:
-                satellite_avg_strength_lists[sv] = []
-            satellite_avg_strength_lists[sv].append(strength)
 
-    # Calculate average
-    satellite_avg_strength: dict[str, float] = {}
-    for sv in satellite_avg_strength_lists:
-        satellite_avg_strength[sv] = float(np.mean(satellite_avg_strength_lists[sv]))
+def compute_ambiguities_for_satellite(
+    sat_obs: SatelliteObservation, system_name: str
+) -> dict:
+    """
+    Compute widelane and ionofree ambiguities for all available frequency pairs.
 
-    # Sort by average signal strength
-    sorted_satellites = sorted(
-        satellite_avg_strength.items(), key=lambda x: x[1], reverse=True
-    )
+    For GPS/QZSS: Compute L1/L2 and L1/L5 if available
+    For Galileo: Compute L1/L5, L1/L7, L1/L8 if available
 
-    if top_n:
-        sorted_satellites = sorted_satellites[:top_n]
+    Args:
+        sat_obs: SatelliteObservation with signals dict
+        system_name: System name ("GPS", "QZSS", or "Galileo")
+    Returns:
+        Dict of {combination_name: AmbiguityObservation}
+    """
+    ambiguities = {}
 
-    # Generate satellite pairs (using the strongest satellite as reference)
-    if len(sorted_satellites) < 2:
-        logger.warning("Not enough satellites to create pairs")
-        return []
+    # GPS/QZSS: L1/L2 combination
+    if system_name in ["GPS", "QZSS"]:
+        if "L1" in sat_obs.signals and "L2" in sat_obs.signals:
+            sig_l1 = sat_obs.signals["L1"]
+            sig_l2 = sat_obs.signals["L2"]
+            ambiguities["L1_L2"] = compute_dual_frequency_ambiguity(
+                sig_l1.pseudorange,
+                sig_l1.carrier_phase,
+                sig_l2.pseudorange,
+                sig_l2.carrier_phase,
+                L1_FREQ,
+                L2_FREQ,
+                wlen_L1,
+                wlen_L2,
+            )
 
-    reference_sat = sorted_satellites[0][0]
-    pairs = []
+    # GPS/QZSS/Galileo: L1/L5 combination
+    if system_name in ["GPS", "QZSS", "Galileo"]:
+        if "L1" in sat_obs.signals and "L5" in sat_obs.signals:
+            sig_l1 = sat_obs.signals["L1"]
+            sig_l5 = sat_obs.signals["L5"]
+            ambiguities["L1_L5"] = compute_dual_frequency_ambiguity(
+                sig_l1.pseudorange,
+                sig_l1.carrier_phase,
+                sig_l5.pseudorange,
+                sig_l5.carrier_phase,
+                L1_FREQ,
+                L5_FREQ,
+                wlen_L1,
+                wlen_L5,
+            )
 
-    for sv, _ in sorted_satellites[1:]:
-        pairs.append((reference_sat, sv))
+    # Galileo: L1/L7(E1/E5B), L1/L8(E1/E5AB) combination
+    if system_name == "Galileo":
+        if "L1" in sat_obs.signals and "L7" in sat_obs.signals:
+            sig_l1 = sat_obs.signals["L1"]
+            sig_l7 = sat_obs.signals["L7"]
+            ambiguities["L1_L7"] = compute_dual_frequency_ambiguity(
+                sig_l1.pseudorange,
+                sig_l1.carrier_phase,
+                sig_l7.pseudorange,
+                sig_l7.carrier_phase,
+                L1_FREQ,
+                E5B_FREQ,
+                wlen_L1,
+                wlen_L7,
+            )
 
-    return pairs
+        # Galileo: L1/L8 combination (E1/E8)
+        if "L1" in sat_obs.signals and "L8" in sat_obs.signals:
+            sig_l1 = sat_obs.signals["L1"]
+            sig_l8 = sat_obs.signals["L8"]
+            ambiguities["L1_L8"] = compute_dual_frequency_ambiguity(
+                sig_l1.pseudorange,
+                sig_l1.carrier_phase,
+                sig_l8.pseudorange,
+                sig_l8.carrier_phase,
+                L1_FREQ,
+                E8_FREQ,
+                wlen_L1,
+                wlen_L8,
+            )
+
+    return ambiguities
+
+
+def parse_rinex_observation_file(
+    file_path: str,
+    signal_code_map: dict[str, list[list[str]]],
+) -> list[EpochObservations]:
+    """
+    Parse a RINEX observation file and return a list of EpochObservations.
+
+    Args:
+        file_path: Path to the RINEX observation file.
+        signal_code_map: Mapping of system name to list of [band_number, signal_code]
+            pairs for observation codes like C1C, L1C, C5X, L5X.
+    Returns:
+        List of EpochObservations containing satellite observations per epoch.
+    """
+    # Placeholder for actual parsing logic
+    epochs = []
+    try:
+        _data = gr.load(file_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to load RINEX file: {e}")
+    # Implement parsing logic here to populate epochs
+    for time_idx, time_val in enumerate(_data.time.values):
+        # Convert numpy.datetime64 to seconds since Unix epoch, then to a naive UTC datetime
+        timestamp_seconds = time_val.astype("datetime64[s]").astype("int64")
+        epoch_obs = EpochObservations(
+            datetime=datetime.fromtimestamp(timestamp_seconds, tz=timezone.utc).replace(
+                tzinfo=None
+            ),
+            satellites_gps=[],
+            satellites_qzss=[],
+            satellites_galileo=[],
+            satellites_glonass=[],
+        )
+        # Iterate over satellites and populate epoch_obs
+        sv_values = [str(s) for s in _data.sv.values]
+        for sv in sv_values:
+            prn = int(sv[1:]) if sv[1:].isdigit() else None
+            if prn is None:
+                continue
+            sat_obs = SatelliteObservation(prn=prn, signals={}, ambiguities={})
+            # GPS (G)
+            for system_code, system_name in [
+                ("G", "GPS"),
+                ("J", "QZSS"),
+                ("E", "Galileo"),
+                ("R", "GLONASS"),
+            ]:
+                if not sv.startswith(system_code):
+                    continue
+                if system_name not in signal_code_map:
+                    raise KeyError(f"signal_code_map missing system: {system_name}")
+                # Extract signal observations (pseudorange, carrier phase, etc.)
+                for band_number, signal_code in signal_code_map[system_name]:
+                    pr_key = f"C{band_number}{signal_code}"
+                    cp_key = f"L{band_number}{signal_code}"
+                    dp_key = f"D{band_number}{signal_code}"
+                    snr_key = f"S{band_number}{signal_code}"
+
+                    # Check if all required keys exist in the dataset
+                    if not all(
+                        key in _data for key in [pr_key, cp_key, dp_key, snr_key]
+                    ):
+                        continue
+
+                    pr = _data[pr_key].sel(sv=sv, time=time_val).values
+                    cp = _data[cp_key].sel(sv=sv, time=time_val).values
+                    dp = _data[dp_key].sel(sv=sv, time=time_val).values
+                    snr = _data[snr_key].sel(sv=sv, time=time_val).values
+
+                    # Skip if any value is NaN or size is 0
+                    if pr.size > 0 and cp.size > 0 and dp.size > 0 and snr.size > 0:
+                        if not (
+                            np.isnan(pr).any()
+                            or np.isnan(cp).any()
+                            or np.isnan(dp).any()
+                            or np.isnan(snr).any()
+                        ):
+                            signal_obs = SatelliteSignalObservation(
+                                pseudorange=float(pr),
+                                carrier_phase=float(cp),
+                                doppler_=float(dp),
+                                snr=float(snr),
+                            )
+                            # Use band name like L1, L2, L5, L7, L8
+                            band_name = f"L{band_number}"
+                            sat_obs.add_signal_observation(band_name, signal_obs)
+                # Only add satellite observation if it has signals
+                if sat_obs.signals:
+                    # Compute ambiguities for GPS/QZSS/Galileo
+                    if system_name in ["GPS", "QZSS", "Galileo"]:
+                        sat_obs.ambiguities = compute_ambiguities_for_satellite(
+                            sat_obs, system_name
+                        )
+
+                    if system_name == "GPS":
+                        epoch_obs.satellites_gps.append(sat_obs)
+                    elif system_name == "QZSS":
+                        epoch_obs.satellites_qzss.append(sat_obs)
+                    elif system_name == "Galileo":
+                        epoch_obs.satellites_galileo.append(sat_obs)
+                    elif system_name == "GLONASS":
+                        epoch_obs.satellites_glonass.append(sat_obs)
+            # Similar logic for other constellations (QZSS, Galileo, GLONASS)
+        epochs.append(epoch_obs)
+    return epochs
+
+
+def save_gnss_observations_to_json(
+    epochs: list[EpochObservations],
+    output_file: str,
+):
+    # Convert to JSON-serializable format
+    def convert_to_json_serializable(obj):
+        """Convert objects to JSON-serializable format."""
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        elif isinstance(obj, dict):
+            return {k: convert_to_json_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_json_serializable(item) for item in obj]
+        elif hasattr(obj, "__dict__"):
+            return convert_to_json_serializable(obj.__dict__)
+        else:
+            return obj
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        import json
+
+        output_data = {
+            "filename": output_file,
+            "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
+        }
+        json.dump(output_data, f, indent=2)

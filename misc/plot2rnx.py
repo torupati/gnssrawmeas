@@ -21,13 +21,13 @@ from app.gnss.constants import (
     nl_wlen,
     iono_wlen,
 )
-from app.gnss.ambiguity import (
-    get_wineline_ambiguity,
-    get_narrowline_ambiguity,
+from misc.gnss_ambiguity import (
+    get_widelane_ambiguity,
+    get_narrowlane_ambiguity,
     calculate_double_difference_widelane_ambiguity,
     calculate_double_difference_ionospheric_ambiguity,
 )
-from app.gnss.satellite_signals import (
+from misc.gnss_signal_utils import (
     get_satellite_pairs_by_signal_strength,
     get_available_signal_code,
 )
@@ -41,6 +41,20 @@ logger.info(f"wl_wlen: {wl_wlen}, nl_wlen: {nl_wlen} iono_wlen: {iono_wlen}")
 
 
 def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
+    """Plot ambiguity difference between two satellites.
+    Args:
+        rnxobs (rinexobs): RINEX observation data
+        satname1 (str): Satellite name 1
+        satname2 (str): Satellite name 2
+    Raises:
+        ValueError: If suitable signal codes for L1 or L2 cannot be found
+    Returns:
+        fig, axes: Matplotlib figure and axes objects
+
+    Note:
+        This function calculates and plots the wide-lane and iono-free ambiguities
+        between two satellites, along with their signal strengths. Differences are calculated in the single observation data, so time axes are the same.
+    """
     time = rnxobs.time
 
     # Wide-lane combination
@@ -50,18 +64,44 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
         raise ValueError(
             f"Cannot find suitable signal codes for L1 or L2 for satellite {satname1}"
         )
-    _, amb_sat1_wl = get_wineline_ambiguity(
-        rnxobs, satname1, _obs_l1_code, _obs_l2_code
+    amb_sat1_wl = get_widelane_ambiguity(
+        rnxobs,
+        satname1,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
     )
-    _, amb_sat2_wl = get_wineline_ambiguity(
-        rnxobs, satname2, _obs_l1_code, _obs_l2_code
+    amb_sat2_wl = get_widelane_ambiguity(
+        rnxobs,
+        satname2,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
     )
     amb_sat1_wl_mean = float(amb_sat1_wl.mean().values)
     amb_sat2_wl_mean = float(amb_sat2_wl.mean().values)
 
     # Iono-free combination
-    _, amb_sat1_n1 = get_narrowline_ambiguity(rnxobs, satname1, amb_sat1_wl_mean)
-    _, amb_sat2_n1 = get_narrowline_ambiguity(rnxobs, satname2, amb_sat2_wl_mean)
+    amb_sat1_n1 = get_narrowlane_ambiguity(
+        rnxobs,
+        satname1,
+        amb_sat1_wl_mean,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
+    )
+    amb_sat2_n1 = get_narrowlane_ambiguity(
+        rnxobs,
+        satname2,
+        amb_sat2_wl_mean,
+        f"C1{_obs_l1_code}",
+        f"L1{_obs_l1_code}",
+        f"C2{_obs_l2_code}",
+        f"L2{_obs_l2_code}",
+    )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
     axes[0].set_title(r"Wide-lane Ambiguity $N_{L1} - N_{L2}$")
@@ -73,10 +113,26 @@ def plot_ambiguity_diff(rnxobs: rinexobs, satname1: str, satname2: str):
     axes[1].set_ylabel("Ambiguity $N_{L1}$ [cycle]")
 
     axes[2].set_title("Signal Strength")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname1), label=f"{satname1} S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname1), label=f"{satname1} S2X")
-    axes[2].plot(time, rnxobs["S1C"].sel(sv=satname2), label=f"{satname2} S1C")
-    axes[2].plot(time, rnxobs["S2X"].sel(sv=satname2), label=f"{satname2} S2X")
+    axes[2].plot(
+        time,
+        rnxobs[f"S1{_obs_l1_code}"].sel(sv=satname1),
+        label=f"{satname1} S1{_obs_l1_code}",
+    )
+    axes[2].plot(
+        time,
+        rnxobs[f"S2{_obs_l2_code}"].sel(sv=satname1),
+        label=f"{satname1} S2{_obs_l2_code}",
+    )
+    axes[2].plot(
+        time,
+        rnxobs[f"S1{_obs_l1_code}"].sel(sv=satname2),
+        label=f"{satname2} S1{_obs_l1_code}",
+    )
+    axes[2].plot(
+        time,
+        rnxobs[f"S2{_obs_l2_code}"].sel(sv=satname2),
+        label=f"{satname2} S2{_obs_l2_code}",
+    )
     axes[2].set_ylabel("C/N0 [dB-Hz]")
     axes[2].legend()
     for ax in axes:
@@ -135,6 +191,7 @@ def plot_ambiguity_diff2(
     obs1_l2_code: str = "X",
     obs2_l1_code: str = "C",
     obs2_l2_code: str = "X",
+    time_synchronize: bool = True,
 ):
     """Plot ambiguity difference between two receivers and two satellites.
 
@@ -157,6 +214,7 @@ def plot_ambiguity_diff2(
         obs1_l2_code,
         obs2_l1_code,
         obs2_l2_code,
+        time_synchronize,
     )
 
     # Iono-free combination
@@ -169,6 +227,7 @@ def plot_ambiguity_diff2(
         obs1_l2_code,
         obs2_l1_code,
         obs2_l2_code,
+        time_synchronize,
     )
 
     fig, axes = plt.subplots(3, 1, figsize=(12, 8), sharex=True)
@@ -176,7 +235,7 @@ def plot_ambiguity_diff2(
         rf"Wide-lane Ambiguity DD {satname1}-{satname2} $N_{{L1}} - N_{{L2}}$"
     )
     axes[0].plot(
-        rnxobs1.time,
+        amb_wl_sat12_rec12.time,
         amb_wl_sat12_rec12,
         ".",
         label=f"Sat {satname1} - Sat {satname2} Rec1 - Rec2",
@@ -194,7 +253,7 @@ def plot_ambiguity_diff2(
 
     axes[1].set_title(rf"Iono-free Ambiguity DD {satname1}-{satname2} $N_{{L1}}$")
     axes[1].plot(
-        rnxobs1.time,
+        amb_iono_sat12_rec12.time,
         amb_iono_sat12_rec12 / iono_wlen,
         ".",
         label=f"Sat {satname1} - Sat {satname2} Rec1 - Rec2",
@@ -208,7 +267,7 @@ def plot_ambiguity_diff2(
     axes[1].set_ylabel(r"$\Delta B_{iono}$ [cycle]")
 
     axes[2].set_title("Signal Strength")
-    for signal_name in ["S1C", "S2X"]:
+    for signal_name in [f"S1{obs1_l1_code}", f"S2{obs1_l2_code}"]:
         axes[2].plot(
             rnxobs1.time,
             rnxobs1[signal_name].sel(sv=satname1),
@@ -272,6 +331,7 @@ def main():
     rnxobs2: rinexobs = gr.load(str(infile2))
     logger.debug(f"rnxobs2: {rnxobs2}")
 
+    # Prepare output directories
     output_figdir = Path(args.outdir)
     output_figdir.mkdir(parents=True, exist_ok=True)
     Path(output_figdir / "single").mkdir(parents=True, exist_ok=True)
@@ -279,7 +339,6 @@ def main():
     Path(output_figdir / "diffdiff").mkdir(parents=True, exist_ok=True)
 
     # target satellite and initial observables plot
-    # Derive GPS satellites present in the file (sv starting with 'G')
     try:
         sv_values = [str(s) for s in rnxobs1.sv.values + rnxobs2.sv.values]
         sv_values = list(set(sv_values))
@@ -287,25 +346,25 @@ def main():
         # Fallback in case .sv isn't a standard coordinate for some reason
         sv_values = [str(s) for s in rnxobs1.coords.get("sv", []).values]
 
-    constelation_type = args.constellation
-    if constelation_type == "a":
+    constellation_type = args.constellation
+    if constellation_type == "a":
         satname_list = sorted(
             sv_values,
             key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
         )
     else:
         satname_list = sorted(
-            [s for s in sv_values if s.startswith(constelation_type)],
+            [s for s in sv_values if s.startswith(constellation_type)],
             key=lambda x: (x[0], int(x[1:]) if x[1:].isdigit() else 999),
         )
     if not satname_list:
         raise ValueError("No satellites found in the provided RINEX files.")
-    logger.info(f"Detected satellites ({constelation_type}): {satname_list}")
+    logger.info(f"Detected satellites ({constellation_type}): {satname_list}")
 
     satellite_pair = get_satellite_pairs_by_signal_strength(
         rnxobs1,
         signal_type="S1C",
-        constellation=constelation_type,
+        constellation=constellation_type,
         top_n=6,
     )
     if not satellite_pair:
@@ -328,15 +387,41 @@ def main():
             logger.warning(f"Satellite {satname2} not found in infile2. Skipping.")
             continue
 
+        obs1_l1_code = get_available_signal_code(rnxobs1, satname1, "L1")
+        obs1_l2_code = get_available_signal_code(rnxobs1, satname1, "L2")
+        obs2_l1_code = get_available_signal_code(rnxobs2, satname1, "L1")
+        obs2_l2_code = get_available_signal_code(rnxobs2, satname1, "L2")
+        if (
+            obs1_l1_code is None
+            or obs1_l2_code is None
+            or obs2_l1_code is None
+            or obs2_l2_code is None
+        ):
+            logger.warning(
+                "Cannot find suitable signal codes for L1 or L2 for "
+                "satellite %s or %s. Skipping.",
+                satname1,
+                satname2,
+            )
+            continue
+
         # Calculate and save widelane ambiguity to JSON
         amb_wl_sat12_rec12 = calculate_double_difference_widelane_ambiguity(
-            rnxobs1, rnxobs2, satname1, satname2
+            rnxobs1,
+            rnxobs2,
+            satname1,
+            satname2,
+            obs1_l1_code,
+            obs1_l2_code,
+            obs2_l1_code,
+            obs2_l2_code,
+            True,
         )
         widelane_data = widelane_ambiguity_to_dict(
             amb_wl_sat12_rec12, satname1, satname2, rnxobs1.time.values
         )
         json_file = output_figdir / "diffdiff" / f"widelane_{satname1}_{satname2}.json"
-        with open(json_file, "w") as f:
+        with open(json_file, "w", encoding="utf-8") as f:
             json.dump(widelane_data, f, indent=2)
         logger.info(f"Widelane data saved to: {json_file}")
 
@@ -361,7 +446,16 @@ def main():
         fig.savefig(out_figfile)
         logger.info(f"{out_figfile}")
 
-        fig, axes = plot_ambiguity_diff2(rnxobs1, rnxobs2, satname1, satname2)
+        fig, axes = plot_ambiguity_diff2(
+            rnxobs1,
+            rnxobs2,
+            satname1,
+            satname2,
+            obs1_l1_code,
+            obs1_l2_code,
+            obs2_l1_code,
+            obs2_l2_code,
+        )
         out_figfile = (
             output_figdir
             / "diffdiff"
