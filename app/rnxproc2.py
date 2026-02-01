@@ -10,30 +10,155 @@ import matplotlib.pyplot as plt
 from app.gnss.satellite_signals import (
     EpochObservations,
     PairedObservation,
+    SatelliteObservation,
     parse_rinex_observation_file,
 )
 
 logger = getLogger(__name__)
 
 
-def _iter_satellites(epoch: EpochObservations):
-    """Iterate over all satellites in the epoch, yielding (sat_id, sat_obs)."""
-    for sat_list, system_code in [
-        (epoch.satellites_gps, "G"),
-        (epoch.satellites_qzss, "J"),
-        (epoch.satellites_galileo, "E"),
-        (epoch.satellites_glonass, "R"),
-    ]:
-        for sat_obs in sat_list:
-            sat_id = f"{system_code}{sat_obs.prn:02d}"
-            yield sat_id, sat_obs
-
-
 def _build_satellite_signal_map(epoch: EpochObservations) -> dict[str, set[str]]:
     sat_signals: dict[str, set[str]] = {}
-    for sat_id, sat_obs in _iter_satellites(epoch):
+    for sat_id, sat_obs in epoch.iter_satellites():
         sat_signals[sat_id] = set(sat_obs.signals.keys())
     return sat_signals
+
+
+def _build_satellite_obs_map(
+    epoch: EpochObservations,
+) -> dict[str, SatelliteObservation]:
+    sat_map: dict[str, SatelliteObservation] = {}
+    for sat_id, sat_obs in epoch.iter_satellites():
+        sat_map[sat_id] = sat_obs
+    return sat_map
+
+
+def _load_satpair_json(path: Path) -> list[dict]:
+    with path.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if isinstance(data, list):
+        return [
+            {"sat1": item[0], "sat2": item[1], "combinations": None} for item in data
+        ]
+
+    if not isinstance(data, dict):
+        raise ValueError("satpair JSON must be a list or an object")
+
+    if "combined" in data:
+        combined = data.get("combined")
+        if not isinstance(combined, list):
+            raise ValueError("combined must be a list in satpair JSON")
+        combined_entries: list[dict] = []
+        for item in combined:
+            if not isinstance(item, dict):
+                raise ValueError("combined items must be objects")
+            satellites = item.get("satellites")
+            bands = item.get("bands")
+            if not isinstance(satellites, list) or len(satellites) != 2:
+                raise ValueError("satellites must be a list of length 2")
+            if bands is not None and not isinstance(bands, list):
+                raise ValueError("bands must be a list")
+            combined_entries.append(
+                {
+                    "sat1": str(satellites[0]),
+                    "sat2": str(satellites[1]),
+                    "combinations": [str(item) for item in bands] if bands else None,
+                }
+            )
+        return combined_entries
+
+    sat_pairs_raw = data.get("sat_pairs")
+    if not isinstance(sat_pairs_raw, list):
+        raise ValueError("sat_pairs must be a list in satpair JSON")
+
+    default_combinations = data.get("combinations")
+    if default_combinations is not None and not isinstance(default_combinations, list):
+        raise ValueError("combinations must be a list in satpair JSON")
+
+    entries: list[dict] = []
+    for item in sat_pairs_raw:
+        if isinstance(item, dict):
+            pair = item.get("pair")
+            if not isinstance(pair, list) or len(pair) != 2:
+                raise ValueError("pair must be a list of length 2 in satpair JSON")
+            combinations = item.get("combinations", default_combinations)
+        else:
+            pair = item
+            combinations = default_combinations
+
+        if not isinstance(pair, list) or len(pair) != 2:
+            raise ValueError("sat_pairs items must be [sat1, sat2]")
+        if combinations is not None and not isinstance(combinations, list):
+            raise ValueError("combinations must be a list in satpair JSON")
+
+        entries.append(
+            {
+                "sat1": str(pair[0]),
+                "sat2": str(pair[1]),
+                "combinations": (
+                    [str(item) for item in combinations]
+                    if combinations is not None
+                    else None
+                ),
+            }
+        )
+
+    return entries
+
+
+def _compute_double_difference_for_pair(
+    observation: EpochObservations,
+    ref_observation: EpochObservations,
+    sat1: str,
+    sat2: str,
+    combination: str,
+) -> dict:
+    obs_map = _build_satellite_obs_map(observation)
+    ref_map = _build_satellite_obs_map(ref_observation)
+
+    obs_sat1 = obs_map.get(sat1)
+    obs_sat2 = obs_map.get(sat2)
+    ref_sat1 = ref_map.get(sat1)
+    ref_sat2 = ref_map.get(sat2)
+
+    if not (obs_sat1 and obs_sat2 and ref_sat1 and ref_sat2):
+        return {
+            "sat1": sat1,
+            "sat2": sat2,
+            "combination": combination,
+            "widelane": None,
+            "ionofree": None,
+        }
+
+    obs_amb1 = obs_sat1.ambiguities.get(combination)
+    obs_amb2 = obs_sat2.ambiguities.get(combination)
+    ref_amb1 = ref_sat1.ambiguities.get(combination)
+    ref_amb2 = ref_sat2.ambiguities.get(combination)
+
+    if not (obs_amb1 and obs_amb2 and ref_amb1 and ref_amb2):
+        return {
+            "sat1": sat1,
+            "sat2": sat2,
+            "combination": combination,
+            "widelane": None,
+            "ionofree": None,
+        }
+
+    widelane_dd = (obs_amb1.widelane - obs_amb2.widelane) - (
+        ref_amb1.widelane - ref_amb2.widelane
+    )
+    ionofree_dd = (obs_amb1.ionofree - obs_amb2.ionofree) - (
+        ref_amb1.ionofree - ref_amb2.ionofree
+    )
+
+    return {
+        "sat1": sat1,
+        "sat2": sat2,
+        "combination": combination,
+        "widelane": widelane_dd,
+        "ionofree": ionofree_dd,
+    }
 
 
 def _init_satellite_data_entry() -> dict:
@@ -50,7 +175,7 @@ def _collect_satellite_data(epochs: list[EpochObservations]) -> dict[str, dict]:
     satellite_data: dict[str, dict] = {}
 
     for epoch in epochs:
-        for sat_id, sat_obs in _iter_satellites(epoch):
+        for sat_id, sat_obs in epoch.iter_satellites():
             if sat_id not in satellite_data:
                 satellite_data[sat_id] = _init_satellite_data_entry()
 
@@ -249,6 +374,8 @@ def plot_paired_satellite_observations(
         if show_snr:
             plot_band_row(axes[plot_idx][0], data_left, "snr", "SNR (dB-Hz)")
             plot_band_row(axes[plot_idx][1], data_right, "snr", "SNR (dB-Hz)")
+            axes[plot_idx][0].set_ylim(30, 60)
+            axes[plot_idx][1].set_ylim(30, 60)
             plot_idx += 1
 
         if has_ambiguity:
@@ -320,6 +447,117 @@ def plot_paired_satellite_observations(
         logger.info(f"Saved plot to {output_file}")
 
 
+def _collect_combined_observation_series(
+    paired: list[PairedObservation],
+) -> dict[tuple[str, str, str], dict]:
+    combined_series: dict[tuple[str, str, str], dict] = {}
+    for pair in paired:
+        if not pair.combined_observations:
+            continue
+        for entry in pair.combined_observations:
+            sat1 = entry.get("sat1")
+            sat2 = entry.get("sat2")
+            comb = entry.get("combination")
+            if not (sat1 and sat2 and comb):
+                continue
+
+            key = (sat1, sat2, comb)
+            if key not in combined_series:
+                combined_series[key] = {
+                    "widelane": {"times": [], "values": []},
+                    "ionofree": {"times": [], "values": []},
+                }
+
+            widelane = entry.get("widelane")
+            ionofree = entry.get("ionofree")
+
+            if widelane is not None:
+                combined_series[key]["widelane"]["times"].append(pair.datetime)
+                combined_series[key]["widelane"]["values"].append(widelane)
+
+            if ionofree is not None:
+                combined_series[key]["ionofree"]["times"].append(pair.datetime)
+                combined_series[key]["ionofree"]["values"].append(ionofree)
+
+    return combined_series
+
+
+def plot_combined_observations(
+    paired: list[PairedObservation],
+    output_dir: Path,
+    plot_mode: int = 1,
+):
+    if not paired:
+        logger.warning("No paired observations available for combined plots")
+        return
+
+    combined_series = _collect_combined_observation_series(paired)
+    if not combined_series:
+        logger.warning("No combined observations found for plotting")
+        return
+
+    show_widelane = plot_mode in {1, 2, 3}
+    show_ionofree = plot_mode in {1, 3}
+
+    if not (show_widelane or show_ionofree):
+        logger.info("Plot mode excludes combined observation plots")
+        return
+
+    start_time = min(pair.datetime for pair in paired)
+    end_time = max(pair.datetime for pair in paired)
+
+    for (sat1, sat2, comb), data in combined_series.items():
+        num_rows = 0
+        if show_widelane:
+            num_rows += 1
+        if show_ionofree:
+            num_rows += 1
+
+        fig, axes = plt.subplots(
+            num_rows,
+            1,
+            figsize=(12, 3 * num_rows),
+            sharex=True,
+        )
+        fig.suptitle(f"Combined {sat1}-{sat2} {comb} (Double Difference)")
+
+        if num_rows == 1:
+            axes = [axes]
+
+        plot_idx = 0
+
+        if show_widelane:
+            ax = axes[plot_idx]
+            wl_times = data["widelane"]["times"]
+            wl_values = data["widelane"]["values"]
+            if wl_values:
+                ax.plot(wl_times, wl_values, marker=".", linestyle="None")
+            ax.set_ylabel(f"Widelane {comb} (cycles)")
+            ax.grid(True)
+            plot_idx += 1
+
+        if show_ionofree:
+            ax = axes[plot_idx]
+            if_times = data["ionofree"]["times"]
+            if_values = data["ionofree"]["values"]
+            if if_values:
+                ax.plot(if_times, if_values, marker=".", linestyle="None")
+            ax.set_ylabel(f"Ionofree {comb} (cycles)")
+            ax.grid(True)
+            plot_idx += 1
+
+        plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha="right")
+        plt.tight_layout()
+
+        axes[-1].set_xlim(start_time, end_time)
+
+        output_file = output_dir / f"{sat1}_{sat2}_{comb}_combined.png"
+        plt.savefig(output_file, dpi=150, bbox_inches="tight")
+        plt.close()
+
+        logger.info(f"Saved combined plot to {output_file}")
+
+
 def _find_closest_epoch(
     ref_epochs: list[EpochObservations],
     ref_times: list[datetime],
@@ -355,13 +593,80 @@ def pair_observations(
                 datetime=epoch.datetime,
                 observation=epoch,
                 ref_observation=ref_epoch,
+                combined_observations=[],
             )
         )
     return paired
 
 
-def _print_common_non_l1_signals(paired: list[PairedObservation]):
-    for pair in paired:
+def _update_combined_observations(
+    paired_epochs: list[PairedObservation],
+    sat_pairs: list[dict],
+):
+    for pair in paired_epochs:
+        combined = []
+        obs_map = _build_satellite_obs_map(pair.observation)
+        ref_map = _build_satellite_obs_map(pair.ref_observation)
+        for entry in sat_pairs:
+            sat1 = entry["sat1"]
+            sat2 = entry["sat2"]
+            combinations = entry.get("combinations")
+
+            obs_sat1 = obs_map.get(sat1)
+            obs_sat2 = obs_map.get(sat2)
+            ref_sat1 = ref_map.get(sat1)
+            ref_sat2 = ref_map.get(sat2)
+
+            if not (obs_sat1 and obs_sat2 and ref_sat1 and ref_sat2):
+                logger.warning(
+                    f"Satellites {sat1} or {sat2} not found in observations at {pair.datetime}"
+                )
+                continue
+
+            obs_keys = set(obs_sat1.ambiguities.keys()) & set(
+                obs_sat2.ambiguities.keys()
+            )
+            ref_keys = set(ref_sat1.ambiguities.keys()) & set(
+                ref_sat2.ambiguities.keys()
+            )
+            common_keys = sorted(obs_keys & ref_keys)
+
+            if combinations is not None:
+                common_keys = [key for key in common_keys if key in combinations]
+
+            if not common_keys:
+                logger.warning(
+                    f"No common ambiguity combinations for satellites {sat1} and {sat2} at {pair.datetime}"
+                )
+                continue
+
+            for comb in common_keys:
+                combined.append(
+                    _compute_double_difference_for_pair(
+                        pair.observation, pair.ref_observation, sat1, sat2, comb
+                    )
+                )
+
+        pair.combined_observations = combined
+
+
+def _paired_observations_to_json(paired_epochs: list[PairedObservation]) -> list[dict]:
+    output = []
+    for pair in paired_epochs:
+        output.append(
+            {
+                "epoch": pair.epoch,
+                "datetime": pair.datetime.isoformat(),
+                "ref_datetime": pair.ref_observation.datetime.isoformat(),
+                "age_seconds": pair.age_seconds,
+                "combined_observations": pair.combined_observations,
+            }
+        )
+    return output
+
+
+def _print_common_non_l1_signals(paired_epochs: list[PairedObservation]):
+    for pair in paired_epochs:
         obs_map = _build_satellite_signal_map(pair.observation)
         ref_map = _build_satellite_signal_map(pair.ref_observation)
         common_sats = sorted(set(obs_map.keys()) & set(ref_map.keys()))
@@ -409,6 +714,18 @@ def main():
         help="Skip generating plots",
     )
     parser.add_argument(
+        "--satpair",
+        type=str,
+        required=True,
+        help="Path to satpair JSON file (e.g., sat_pair.json)",
+    )
+    parser.add_argument(
+        "--paired-json",
+        type=str,
+        default="./paired_observations.json",
+        help="Output JSON file for paired observations (default: ./paired_observations.json)",
+    )
+    parser.add_argument(
         "--signal-code-map",
         type=str,
         default=str(Path(__file__).parent / ".signal_code_map.json"),
@@ -444,7 +761,7 @@ def main():
         )
         return 1
 
-    logger.info(f"Parsing input RINEX file: {rinex_path}")
+    logger.info(f"... input RINEX file: {rinex_path}")
     epochs: list[EpochObservations] = parse_rinex_observation_file(
         str(rinex_path), signal_code_map
     )
@@ -452,7 +769,7 @@ def main():
         f"... parsed {len(epochs)} epochs. {epochs[0].datetime if epochs else 'N/A'} to {epochs[-1].datetime if epochs else 'N/A'}"
     )
 
-    logger.info(f"Parsing reference RINEX file: {ref_path}")
+    logger.info(f"... reference RINEX file: {ref_path}")
     ref_epochs: list[EpochObservations] = parse_rinex_observation_file(
         str(ref_path), signal_code_map
     )
@@ -464,7 +781,23 @@ def main():
         logger.error("Input or reference epochs are empty")
         return 1
 
+    logger.info("... pairing observations...")
     paired = pair_observations(epochs, ref_epochs)
+    satpair_path = Path(args.satpair)
+    if not satpair_path.exists():
+        logger.error(f"satpair JSON file not found: {satpair_path}")
+        return 1
+    try:
+        sat_pairs = _load_satpair_json(satpair_path)
+    except (ValueError, json.JSONDecodeError) as exc:
+        logger.error(f"Invalid satpair JSON: {exc}")
+        return 1
+    _update_combined_observations(paired, sat_pairs)
+    paired_json_path = Path(args.paired_json)
+    paired_json_path.parent.mkdir(parents=True, exist_ok=True)
+    with paired_json_path.open("w", encoding="utf-8") as f:
+        json.dump(_paired_observations_to_json(paired), f, indent=2)
+    logger.info(f"Saved paired observations to JSON: {paired_json_path}")
     _print_common_non_l1_signals(paired)
 
     output_dir = Path(args.outdir)
@@ -476,6 +809,8 @@ def main():
     else:
         logger.info("Generating paired plots...")
         plot_paired_satellite_observations(paired, output_dir, plot_mode=args.plot_mode)
+        logger.info("Generating combined observation plots...")
+        plot_combined_observations(paired, output_dir, plot_mode=args.plot_mode)
     return 0
 
 

@@ -2,6 +2,7 @@ from logging import getLogger
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Optional, List, Dict
 
 import numpy as np
 
@@ -58,19 +59,62 @@ class SatelliteObservation:
 
 @dataclass
 class EpochObservations:
+    """GNSS observations for a single epoch.
+    Attributes:
+        datetime: Observation epoch time (UTC)
+        satellites_gps: List of SatelliteObservation for GPS satellites
+        satellites_qzss: List of SatelliteObservation for QZSS satellites
+        satellites_galileo: List of SatelliteObservation for Galileo satellites
+        satellites_glonass: List of SatelliteObservation for GLONASS satellites
+    """
+
     datetime: datetime
     satellites_gps: list[SatelliteObservation]
     satellites_qzss: list[SatelliteObservation]
     satellites_galileo: list[SatelliteObservation]
     satellites_glonass: list[SatelliteObservation]
 
+    def __str__(self):
+        return (
+            f"EpochObservations(datetime={self.datetime}, "
+            f"GPS_sats={len(self.satellites_gps)}, "
+            f"QZSS_sats={len(self.satellites_qzss)}, "
+            f"Galileo_sats={len(self.satellites_galileo)}, "
+            f"GLONASS_sats={len(self.satellites_glonass)})"
+        )
+
+    def iter_satellites(self):
+        """Iterate over all satellites in the epoch, yielding (sat_id, sat_obs)."""
+        for sat_list, system_code in [
+            (self.satellites_gps, "G"),
+            (self.satellites_qzss, "J"),
+            (self.satellites_galileo, "E"),
+            (self.satellites_glonass, "R"),
+        ]:
+            for sat_obs in sat_list:
+                sat_id = f"{system_code}{sat_obs.prn:02d}"
+                yield sat_id, sat_obs
+
 
 @dataclass
 class PairedObservation:
+    """Paired GNSS observations for a single epoch.
+    This is used for comparing two sets of observations (e.g., from two receivers).
+    Attributes:
+        epoch: Epoch identifier as a string
+        datetime: Observation epoch time (UTC)
+        observation: Primary EpochObservations
+        ref_observation: Reference EpochObservations
+        combined_observations: Optional list of combined observation dicts
+    """
+
     epoch: str
     datetime: datetime
     observation: EpochObservations
     ref_observation: EpochObservations
+    combined_observations: Optional[List[Dict]] = (
+        None  # list of combined observation dicts
+    )
 
     @property
     def time_str(self) -> str:
