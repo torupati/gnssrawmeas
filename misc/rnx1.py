@@ -15,14 +15,14 @@ import numpy as np
 import georinex as gr
 from georinex import rinexobs
 
-from app.gnss.plot.observables import (
+from misc.gnss_plot_observables import (
     plot_observables,
     plot_pr_cp,
     plot_ambiguity_single_sat_single_rec,
     plot_ionofree_combination,
 )
 
-from app.gnss.satellite_signals import (
+from misc.gnss_signal_utils import (
     get_available_signal_code,
     get_multifrequency_measurements,
 )

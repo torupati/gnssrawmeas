@@ -17,6 +17,7 @@ logger = getLogger(__name__)
 
 
 def _iter_satellites(epoch: EpochObservations):
+    """Iterate over all satellites in the epoch, yielding (sat_id, sat_obs)."""
     for sat_list, system_code in [
         (epoch.satellites_gps, "G"),
         (epoch.satellites_qzss, "J"),
@@ -122,12 +123,27 @@ def plot_paired_satellite_observations(
     output_dir: Path,
     plot_mode: int = 1,
 ):
+    """Plot observations for paired satellite data.
+
+    Args:
+        paired (list[PairedObservation]): time synchronized observation epochs
+        output_dir (Path): output directory for plots
+        plot_mode (int, optional): Plot mode selection. Defaults to 1.
+    """
     input_epochs = [pair.observation for pair in paired]
     ref_epochs = [pair.ref_observation for pair in paired]
     input_data = _collect_satellite_data(input_epochs)
     ref_data = _collect_satellite_data(ref_epochs)
 
+    if len(input_data) < 2:
+        logger.warning("Number of satellites in input observations less than 2")
+        return
+    if len(ref_data) == 0:
+        logger.warning("No satellite data found in reference observations")
+        return
     common_sats = sorted(set(input_data.keys()) & set(ref_data.keys()))
+    start_time = input_epochs[0].datetime
+    end_time = input_epochs[-1].datetime
 
     for sat_id in common_sats:
         logger.info(f"Plotting paired satellite {sat_id}")
@@ -149,8 +165,8 @@ def plot_paired_satellite_observations(
                 all_times.extend(comb_data["widelane"]["times"])
                 all_times.extend(comb_data["ionofree"]["times"])
 
-        common_start = min(all_times) if all_times else None
-        common_end = max(all_times) if all_times else None
+        #        common_start = min(all_times) if all_times else None
+        #        common_end = max(all_times) if all_times else None
 
         num_ambiguity_combos = len(
             set(data_left["ambiguities"].keys()) | set(data_right["ambiguities"].keys())
@@ -290,10 +306,9 @@ def plot_paired_satellite_observations(
 
         plt.tight_layout()
 
-        if common_start is not None and common_end is not None:
-            for row_axes in axes:
-                row_axes[0].set_xlim(common_start, common_end)
-                row_axes[1].set_xlim(common_start, common_end)
+        for row_axes in axes:
+            row_axes[0].set_xlim(start_time, end_time)
+            row_axes[1].set_xlim(start_time, end_time)
 
         axes[-1][0].set_xlabel("Time")
         axes[-1][1].set_xlabel("Time")

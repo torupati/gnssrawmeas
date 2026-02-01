@@ -21,13 +21,13 @@ from app.gnss.constants import (
     nl_wlen,
     iono_wlen,
 )
-from app.gnss.ambiguity import (
+from misc.gnss_ambiguity import (
     get_widelane_ambiguity,
     get_narrowlane_ambiguity,
     calculate_double_difference_widelane_ambiguity,
     calculate_double_difference_ionospheric_ambiguity,
 )
-from app.gnss.satellite_signals import (
+from misc.gnss_signal_utils import (
     get_satellite_pairs_by_signal_strength,
     get_available_signal_code,
 )
