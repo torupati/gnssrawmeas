@@ -15,12 +15,14 @@ from app.gnss.constants import (
     L1_FREQ,
     L2_FREQ,
     L5_FREQ,
+    E5A_FREQ,
     E5B_FREQ,
-    E6_FREQ,
+    E8_FREQ,
     wlen_L1,
     wlen_L2,
     wlen_L5,
     wlen_L7,
+    wlen_L6,
     wlen_L8,
 )
 
@@ -177,7 +179,21 @@ def compute_ambiguities_for_satellite(
                 wlen_L7,
             )
 
-        # Galileo: L1/L8 combination (E1/E6)
+        if "L1" in sat_obs.signals and "L6" in sat_obs.signals:
+            sig_l1 = sat_obs.signals["L1"]
+            sig_l6 = sat_obs.signals["L6"]
+            ambiguities["L1_L6"] = compute_dual_frequency_ambiguity(
+                sig_l1.pseudorange,
+                sig_l1.carrier_phase,
+                sig_l6.pseudorange,
+                sig_l6.carrier_phase,
+                L1_FREQ,
+                E5A_FREQ,
+                wlen_L1,
+                wlen_L6,
+            )
+
+        # Galileo: L1/L8 combination (E1/E8)
         if "L1" in sat_obs.signals and "L8" in sat_obs.signals:
             sig_l1 = sat_obs.signals["L1"]
             sig_l8 = sat_obs.signals["L8"]
@@ -187,7 +203,7 @@ def compute_ambiguities_for_satellite(
                 sig_l8.pseudorange,
                 sig_l8.carrier_phase,
                 L1_FREQ,
-                E6_FREQ,
+                E8_FREQ,
                 wlen_L1,
                 wlen_L8,
             )

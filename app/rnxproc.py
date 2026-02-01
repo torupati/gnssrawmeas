@@ -327,10 +327,10 @@ def main():
     parser.add_argument(
         "--signal-code-map",
         type=str,
-        default=str(Path(__file__).parent / "gnss" / "signal_code_map.json"),
+        default=str(Path(__file__).parent / ".signal_code_map.json"),
         help=(
             "Path to JSON file that defines signal_code_map "
-            "(default: app/gnss/signal_code_map.json)"
+            "(default: .signal_code_map.json)"
         ),
     )
 
@@ -369,7 +369,9 @@ def main():
     epochs: list[EpochObservations] = parse_rinex_observation_file(
         str(rinex_path), signal_code_map
     )
-    logger.info(f"Parsed {len(epochs)} epochs")
+    logger.info(
+        f"... parsed {len(epochs)} epochs. {epochs[0].datetime if epochs else 'N/A'} to {epochs[-1].datetime if epochs else 'N/A'}"
+    )
 
     # Save to JSON if requested
     if args.json:
