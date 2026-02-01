@@ -29,7 +29,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
     for epoch in epochs:
         for sat_list, system_code in [
             (epoch.satellites_gps, "G"),
-            (epoch.satellites_qzss, "Q"),
+            (epoch.satellites_qzss, "J"),
             (epoch.satellites_galileo, "E"),
             (epoch.satellites_glonass, "R"),
         ]:

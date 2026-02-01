@@ -362,7 +362,7 @@ def convert_epochs_to_json(epochs):
         # Process all GNSS systems
         for sat_list, system_code in [
             (epoch.satellites_gps, "G"),
-            (epoch.satellites_qzss, "Q"),
+            (epoch.satellites_qzss, "J"),
             (epoch.satellites_galileo, "E"),
             (epoch.satellites_glonass, "R"),
         ]:
