@@ -164,7 +164,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                         band_data["values"],
                         marker=".",
                         linestyle="None",
-                        label=f"L{band_name}",
+                        label=band_name,
                     )
             axes[plot_idx].set_ylabel("Pseudorange (m)")
             axes[plot_idx].legend()
@@ -179,7 +179,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                         band_data["values"],
                         marker=".",
                         linestyle="None",
-                        label=f"L{band_name}",
+                        label=band_name,
                     )
             axes[plot_idx].set_ylabel("Carrier Phase (cycles)")
             axes[plot_idx].legend()
@@ -194,7 +194,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                         band_data["values"],
                         marker=".",
                         linestyle="None",
-                        label=f"L{band_name}",
+                        label=band_name,
                     )
             axes[plot_idx].set_ylabel("Doppler (Hz)")
             axes[plot_idx].legend()
@@ -210,7 +210,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                         band_data["values"],
                         marker=".",
                         linestyle="None",
-                        label=f"L{band_name}",
+                        label=band_name,
                     )
             axes[plot_idx].set_ylabel("SNR (dB-Hz)")
             axes[plot_idx].legend()
