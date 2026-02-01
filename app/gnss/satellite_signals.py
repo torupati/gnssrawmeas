@@ -15,14 +15,12 @@ from app.gnss.constants import (
     L1_FREQ,
     L2_FREQ,
     L5_FREQ,
-    E5A_FREQ,
     E5B_FREQ,
     E8_FREQ,
     wlen_L1,
     wlen_L2,
     wlen_L5,
     wlen_L7,
-    wlen_L6,
     wlen_L8,
 )
 
@@ -68,6 +66,22 @@ class EpochObservations:
     satellites_qzss: list[SatelliteObservation]
     satellites_galileo: list[SatelliteObservation]
     satellites_glonass: list[SatelliteObservation]
+
+
+@dataclass
+class PairedObservation:
+    epoch: str
+    datetime: datetime
+    observation: EpochObservations
+    ref_observation: EpochObservations
+
+    @property
+    def time_str(self) -> str:
+        return self.datetime.strftime("%Y-%m-%d %H:%M:%S")
+
+    @property
+    def age_seconds(self) -> float:
+        return (self.datetime - self.ref_observation.datetime).total_seconds()
 
 
 def compute_dual_frequency_ambiguity(
@@ -163,7 +177,7 @@ def compute_ambiguities_for_satellite(
                 wlen_L5,
             )
 
-    # Galileo: L1/L7 combination (E1/E5B)
+    # Galileo: L1/L7(E1/E5B), L1/L8(E1/E5AB) combination
     if system_name == "Galileo":
         if "L1" in sat_obs.signals and "L7" in sat_obs.signals:
             sig_l1 = sat_obs.signals["L1"]
@@ -177,20 +191,6 @@ def compute_ambiguities_for_satellite(
                 E5B_FREQ,
                 wlen_L1,
                 wlen_L7,
-            )
-
-        if "L1" in sat_obs.signals and "L6" in sat_obs.signals:
-            sig_l1 = sat_obs.signals["L1"]
-            sig_l6 = sat_obs.signals["L6"]
-            ambiguities["L1_L6"] = compute_dual_frequency_ambiguity(
-                sig_l1.pseudorange,
-                sig_l1.carrier_phase,
-                sig_l6.pseudorange,
-                sig_l6.carrier_phase,
-                L1_FREQ,
-                E5A_FREQ,
-                wlen_L1,
-                wlen_L6,
             )
 
         # Galileo: L1/L8 combination (E1/E8)
