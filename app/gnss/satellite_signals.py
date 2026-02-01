@@ -274,10 +274,10 @@ def parse_rinex_observation_file(
         raise RuntimeError(f"Failed to load RINEX file: {e}")
     # Implement parsing logic here to populate epochs
     for time_idx, time_val in enumerate(_data.time.values):
+        # Convert numpy.datetime64 to seconds since Unix epoch, then to a naive UTC datetime
+        timestamp_seconds = time_val.astype("datetime64[s]").astype("int64")
         epoch_obs = EpochObservations(
-            datetime=datetime.fromtimestamp(
-                time_val.astype("O") / 1e9, tz=timezone.utc
-            ).replace(tzinfo=None),
+            datetime=datetime.fromtimestamp(timestamp_seconds, tz=timezone.utc).replace(tzinfo=None),
             satellites_gps=[],
             satellites_qzss=[],
             satellites_galileo=[],
