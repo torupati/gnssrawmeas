@@ -1,6 +1,4 @@
 import argparse
-from bisect import bisect_left  # Find insertion index in a sorted list (binary search)
-from datetime import datetime
 import json
 from pathlib import Path
 from logging import getLogger, basicConfig, INFO
@@ -11,9 +9,9 @@ import matplotlib.pyplot as plt
 from app.gnss.satellite_signals import (
     EpochObservations,
     PairedObservation,
-    SatelliteObservation,
     parse_rinex_observation_file,
 )
+from app.gnss.signal_combination import pair_observations, update_combined_observation
 
 logger = getLogger(__name__)
 
@@ -23,15 +21,6 @@ def _build_satellite_signal_map(epoch: EpochObservations) -> dict[str, set[str]]
     for sat_id, sat_obs in epoch.iter_satellites():
         sat_signals[sat_id] = set(sat_obs.signals.keys())
     return sat_signals
-
-
-def _build_satellite_obs_map(
-    epoch: EpochObservations,
-) -> dict[str, SatelliteObservation]:
-    sat_map: dict[str, SatelliteObservation] = {}
-    for sat_id, sat_obs in epoch.iter_satellites():
-        sat_map[sat_id] = sat_obs
-    return sat_map
 
 
 def _load_satpair_json(path: Path) -> list[dict]:
@@ -106,60 +95,6 @@ def _load_satpair_json(path: Path) -> list[dict]:
         )
 
     return entries
-
-
-def _compute_double_difference_for_pair(
-    observation: EpochObservations,
-    ref_observation: EpochObservations,
-    sat1: str,
-    sat2: str,
-    combination: str,
-) -> dict:
-    obs_map = _build_satellite_obs_map(observation)
-    ref_map = _build_satellite_obs_map(ref_observation)
-
-    obs_sat1 = obs_map.get(sat1)
-    obs_sat2 = obs_map.get(sat2)
-    ref_sat1 = ref_map.get(sat1)
-    ref_sat2 = ref_map.get(sat2)
-
-    if not (obs_sat1 and obs_sat2 and ref_sat1 and ref_sat2):
-        return {
-            "sat1": sat1,
-            "sat2": sat2,
-            "combination": combination,
-            "widelane": None,
-            "ionofree": None,
-        }
-
-    obs_amb1 = obs_sat1.ambiguities.get(combination)
-    obs_amb2 = obs_sat2.ambiguities.get(combination)
-    ref_amb1 = ref_sat1.ambiguities.get(combination)
-    ref_amb2 = ref_sat2.ambiguities.get(combination)
-
-    if not (obs_amb1 and obs_amb2 and ref_amb1 and ref_amb2):
-        return {
-            "sat1": sat1,
-            "sat2": sat2,
-            "combination": combination,
-            "widelane": None,
-            "ionofree": None,
-        }
-
-    widelane_dd = (obs_amb1.widelane - obs_amb2.widelane) - (
-        ref_amb1.widelane - ref_amb2.widelane
-    )
-    ionofree_dd = (obs_amb1.ionofree - obs_amb2.ionofree) - (
-        ref_amb1.ionofree - ref_amb2.ionofree
-    )
-
-    return {
-        "sat1": sat1,
-        "sat2": sat2,
-        "combination": combination,
-        "widelane": widelane_dd,
-        "ionofree": ionofree_dd,
-    }
 
 
 def _init_satellite_data_entry() -> dict:
@@ -556,98 +491,6 @@ def plot_combined_observations(
         logger.info(f"Saved combined plot to {output_file}")
 
 
-def _find_closest_epoch(
-    ref_epochs: list[EpochObservations],
-    ref_times: list[datetime],
-    target_time: datetime,
-) -> EpochObservations:
-    if not ref_epochs:
-        raise ValueError("Reference epochs are empty")
-    idx = bisect_left(ref_times, target_time)
-    if idx == 0:
-        return ref_epochs[0]
-    if idx >= len(ref_times):
-        return ref_epochs[-1]
-    before = ref_epochs[idx - 1]
-    after = ref_epochs[idx]
-    if abs((target_time - before.datetime).total_seconds()) <= abs(
-        (after.datetime - target_time).total_seconds()
-    ):
-        return before
-    return after
-
-
-def pair_observations(
-    epochs: list[EpochObservations],
-    ref_epochs: list[EpochObservations],
-) -> list[PairedObservation]:
-    ref_times = [epoch.datetime for epoch in ref_epochs]
-    paired: list[PairedObservation] = []
-    for epoch in epochs:
-        ref_epoch = _find_closest_epoch(ref_epochs, ref_times, epoch.datetime)
-        paired.append(
-            PairedObservation(
-                epoch=epoch.datetime.isoformat(),
-                datetime=epoch.datetime,
-                observation=epoch,
-                ref_observation=ref_epoch,
-                combined_observations=[],
-            )
-        )
-    return paired
-
-
-def _update_combined_observations(
-    paired_epochs: list[PairedObservation],
-    sat_pairs: list[dict],
-):
-    for pair in paired_epochs:
-        combined = []
-        obs_map = _build_satellite_obs_map(pair.observation)
-        ref_map = _build_satellite_obs_map(pair.ref_observation)
-        for entry in sat_pairs:
-            sat1 = entry["sat1"]
-            sat2 = entry["sat2"]
-            combinations = entry.get("combinations")
-
-            obs_sat1 = obs_map.get(sat1)
-            obs_sat2 = obs_map.get(sat2)
-            ref_sat1 = ref_map.get(sat1)
-            ref_sat2 = ref_map.get(sat2)
-
-            if not (obs_sat1 and obs_sat2 and ref_sat1 and ref_sat2):
-                logger.warning(
-                    f"Satellites {sat1} or {sat2} not found in observations at {pair.datetime}"
-                )
-                continue
-
-            obs_keys = set(obs_sat1.ambiguities.keys()) & set(
-                obs_sat2.ambiguities.keys()
-            )
-            ref_keys = set(ref_sat1.ambiguities.keys()) & set(
-                ref_sat2.ambiguities.keys()
-            )
-            common_keys = sorted(obs_keys & ref_keys)
-
-            if combinations is not None:
-                common_keys = [key for key in common_keys if key in combinations]
-
-            if not common_keys:
-                logger.warning(
-                    f"No common ambiguity combinations for satellites {sat1} and {sat2} at {pair.datetime}"
-                )
-                continue
-
-            for comb in common_keys:
-                combined.append(
-                    _compute_double_difference_for_pair(
-                        pair.observation, pair.ref_observation, sat1, sat2, comb
-                    )
-                )
-
-        pair.combined_observations = combined
-
-
 def _paired_observations_to_json(paired_epochs: list[PairedObservation]) -> list[dict]:
     output = []
     for pair in paired_epochs:
@@ -804,7 +647,16 @@ def main():
         type=str,
         default=str(Path(__file__).parent / ".signal_code_map.json"),
         help=(
-            "Path to JSON file that defines signal_code_map "
+            "Path to JSON file that defines signal_code_map of input RINEX file"
+            "(default: .signal_code_map.json)"
+        ),
+    )
+    parser.add_argument(
+        "--signal-code-map-ref",
+        type=str,
+        default=str(Path(__file__).parent / ".signal_code_map.json"),
+        help=(
+            "Path to JSON file that defines signal_code_map of reference RINEX file"
             "(default: .signal_code_map.json)"
         ),
     )
@@ -813,15 +665,7 @@ def main():
 
     basicConfig(level=INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    rinex_path = Path(args.rinex_obs)
-    ref_path = Path(args.rinex_ref)
-    if not rinex_path.exists():
-        logger.error(f"RINEX file not found: {rinex_path}")
-        return 1
-    if not ref_path.exists():
-        logger.error(f"Reference RINEX file not found: {ref_path}")
-        return 1
-
+    # Load signal code map for input RINEX file
     signal_code_map_path = Path(args.signal_code_map)
     if not signal_code_map_path.exists():
         logger.error(f"Signal code map file not found: {signal_code_map_path}")
@@ -835,6 +679,29 @@ def main():
         )
         return 1
 
+    signal_code_map_ref_path = Path(args.signal_code_map_ref)
+    if not signal_code_map_ref_path.exists():
+        logger.error(f"Signal code map file not found: {signal_code_map_ref_path}")
+        return 1
+    try:
+        with signal_code_map_ref_path.open("r", encoding="utf-8") as f:
+            signal_code_map_ref = json.load(f)
+    except json.JSONDecodeError as exc:
+        logger.error(
+            f"Invalid JSON in signal code map file: {signal_code_map_ref_path} ({exc})"
+        )
+        return 1
+
+    # Load input and reference RINEX observation files
+    rinex_path = Path(args.rinex_obs)
+    ref_path = Path(args.rinex_ref)
+    if not rinex_path.exists():
+        logger.error(f"RINEX file not found: {rinex_path}")
+        return 1
+    if not ref_path.exists():
+        logger.error(f"Reference RINEX file not found: {ref_path}")
+        return 1
+
     logger.info(f"... input RINEX file: {rinex_path}")
     epochs: list[EpochObservations] = parse_rinex_observation_file(
         str(rinex_path), signal_code_map
@@ -845,7 +712,7 @@ def main():
 
     logger.info(f"... reference RINEX file: {ref_path}")
     ref_epochs: list[EpochObservations] = parse_rinex_observation_file(
-        str(ref_path), signal_code_map
+        str(ref_path), signal_code_map_ref
     )
     logger.info(
         f"... parsed {len(ref_epochs)} epochs. {ref_epochs[0].datetime if ref_epochs else 'N/A'} to {ref_epochs[-1].datetime if ref_epochs else 'N/A'}"
@@ -866,7 +733,7 @@ def main():
     except (ValueError, json.JSONDecodeError) as exc:
         logger.error(f"Invalid satpair JSON: {exc}")
         return 1
-    _update_combined_observations(paired, sat_pairs)
+    update_combined_observation(paired, sat_pairs)
     paired_json_path = Path(args.paired_json)
     paired_json_path.parent.mkdir(parents=True, exist_ok=True)
     with paired_json_path.open("w", encoding="utf-8") as f:
