@@ -804,7 +804,16 @@ def main():
         type=str,
         default=str(Path(__file__).parent / ".signal_code_map.json"),
         help=(
-            "Path to JSON file that defines signal_code_map "
+            "Path to JSON file that defines signal_code_map of input RINEX file"
+            "(default: .signal_code_map.json)"
+        ),
+    )
+    parser.add_argument(
+        "--signal-code-map-ref",
+        type=str,
+        default=str(Path(__file__).parent / ".signal_code_map.json"),
+        help=(
+            "Path to JSON file that defines signal_code_map of reference RINEX file"
             "(default: .signal_code_map.json)"
         ),
     )
@@ -813,15 +822,7 @@ def main():
 
     basicConfig(level=INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-    rinex_path = Path(args.rinex_obs)
-    ref_path = Path(args.rinex_ref)
-    if not rinex_path.exists():
-        logger.error(f"RINEX file not found: {rinex_path}")
-        return 1
-    if not ref_path.exists():
-        logger.error(f"Reference RINEX file not found: {ref_path}")
-        return 1
-
+    # Load signal code map for input RINEX file
     signal_code_map_path = Path(args.signal_code_map)
     if not signal_code_map_path.exists():
         logger.error(f"Signal code map file not found: {signal_code_map_path}")
@@ -835,6 +836,29 @@ def main():
         )
         return 1
 
+    signal_code_map_ref_path = Path(args.signal_code_map_ref)
+    if not signal_code_map_ref_path.exists():
+        logger.error(f"Signal code map file not found: {signal_code_map_ref_path}")
+        return 1
+    try:
+        with signal_code_map_ref_path.open("r", encoding="utf-8") as f:
+            signal_code_map_ref = json.load(f)
+    except json.JSONDecodeError as exc:
+        logger.error(
+            f"Invalid JSON in signal code map file: {signal_code_map_ref_path} ({exc})"
+        )
+        return 1
+
+    # Load input and reference RINEX observation files
+    rinex_path = Path(args.rinex_obs)
+    ref_path = Path(args.rinex_ref)
+    if not rinex_path.exists():
+        logger.error(f"RINEX file not found: {rinex_path}")
+        return 1
+    if not ref_path.exists():
+        logger.error(f"Reference RINEX file not found: {ref_path}")
+        return 1
+
     logger.info(f"... input RINEX file: {rinex_path}")
     epochs: list[EpochObservations] = parse_rinex_observation_file(
         str(rinex_path), signal_code_map
@@ -845,7 +869,7 @@ def main():
 
     logger.info(f"... reference RINEX file: {ref_path}")
     ref_epochs: list[EpochObservations] = parse_rinex_observation_file(
-        str(ref_path), signal_code_map
+        str(ref_path), signal_code_map_ref
     )
     logger.info(
         f"... parsed {len(ref_epochs)} epochs. {ref_epochs[0].datetime if ref_epochs else 'N/A'} to {ref_epochs[-1].datetime if ref_epochs else 'N/A'}"
