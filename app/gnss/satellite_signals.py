@@ -31,6 +31,14 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
 
 @dataclass
 class SatelliteSignalObservation:
+    """Observation data for a single satellite signal band.
+    Attributes:
+        pseudorange: Pseudorange measurement in meters
+        carrier_phase: Carrier phase measurement in cycles
+        doppler_: Doppler measurement in Hz
+        snr: Signal-to-noise ratio in dB-Hz
+    """
+
     pseudorange: float  # in meters
     carrier_phase: float  # in cycles
     doppler_: float  # in Hz
@@ -39,12 +47,25 @@ class SatelliteSignalObservation:
 
 @dataclass
 class AmbiguityObservation:
+    """Ambiguity observations for dual-frequency combinations.
+    Attributes:
+        widelane: Widelane ambiguity in cycles
+        ionofree: Ionosphere-free ambiguity in cycles
+    """
+
     widelane: float  # in cycle
     ionofree: float  # in cycle
 
 
 @dataclass
 class SatelliteObservation:
+    """GNSS observations for a single satellite.
+    Attributes:
+        prn: Satellite PRN number
+        signals: Dict of band name to SatelliteSignalObservation
+        ambiguities: Dict of combination name to AmbiguityObservation
+    """
+
     prn: int
     signals: dict  # key: band (str), value: SatelliteSignalObservation
     ambiguities: (
