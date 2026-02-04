@@ -13,14 +13,11 @@ from typing import Optional
 import numpy as np
 
 from app.gnss.constants import CLIGHT
+from app.gnss.coordinates import ecef_to_enu_matrix, ecef_to_llh
 from app.gnss.satellite_signals import EpochObservations, parse_rinex_observation_file
 
 logger = getLogger(__name__)
 
-# WGS84 constants
-WGS84_A = 6378137.0
-WGS84_F = 1 / 298.257223563
-WGS84_E2 = WGS84_F * (2 - WGS84_F)
 MU_GPS = 3.986005e14
 OMEGA_E = 7.2921151467e-5
 F_REL = -4.442807633e-10
@@ -329,43 +326,6 @@ def compute_satellite_state(
 
     sat_pos, dtsv = broadcast_ecef_and_clock(nav, t_tx)
     return sat_pos, dtsv
-
-
-def ecef_to_llh(pos: np.ndarray) -> np.ndarray:
-    if not np.all(np.isfinite(pos)) or np.linalg.norm(pos) < 1.0:
-        return np.array([0.0, 0.0, 0.0])
-    x, y, z = pos
-    lon = np.arctan2(y, x)
-    r = np.hypot(x, y)
-    lat = np.arctan2(z, r * (1 - WGS84_E2))
-
-    for _ in range(5):
-        sin_lat = np.sin(lat)
-        N = WGS84_A / np.sqrt(1 - WGS84_E2 * sin_lat**2)
-        h = r / np.cos(lat) - N
-        lat = np.arctan2(z, r * (1 - WGS84_E2 * N / (N + h)))
-
-    sin_lat = np.sin(lat)
-    N = WGS84_A / np.sqrt(1 - WGS84_E2 * sin_lat**2)
-    h = r / np.cos(lat) - N
-
-    return np.array([np.degrees(lat), np.degrees(lon), h])
-
-
-def ecef_to_enu_matrix(lat_deg: float, lon_deg: float) -> np.ndarray:
-    lat = np.radians(lat_deg)
-    lon = np.radians(lon_deg)
-    sin_lat = np.sin(lat)
-    cos_lat = np.cos(lat)
-    sin_lon = np.sin(lon)
-    cos_lon = np.cos(lon)
-    return np.array(
-        [
-            [-sin_lon, cos_lon, 0.0],
-            [-sin_lat * cos_lon, -sin_lat * sin_lon, cos_lat],
-            [cos_lat * cos_lon, cos_lat * sin_lon, sin_lat],
-        ]
-    )
 
 
 def tropospheric_delay(
