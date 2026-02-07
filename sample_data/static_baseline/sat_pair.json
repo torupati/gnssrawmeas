@@ -1,70 +1,25 @@
 {
     "combined": [
         {
-            "satellites": ["E04", "E09"],
-            "bands": ["L1_L5", "L1_L7", "L1_L8"]
-        },
-        {
-            "satellites": ["E05", "E09"],
-            "bands": ["L1_L5", "L1_L7", "L1_L8"]
-        },
-        {
-            "satellites": ["E06", "E09"],
-            "bands": ["L1_L5", "L1_L7", "L1_L8"]
-        },
-        {
-            "satellites": ["E23", "E09"],
-            "bands": ["L1_L5", "L1_L7", "L1_L8"]
-        },
-        {
-            "satellites": ["E31", "E09"],
-            "bands": ["L1_L5", "L1_L7", "L1_L8"]
-        },
-        {
-            "satellites": ["E36", "E09"],
-            "bands": ["L1_L5", "L1_L7", "L1_L8"]
-        },
-        {
-            "satellites": ["G12", "G10"],
+            "satellites": ["G10", "G12"],
             "bands": ["L1_L2"]
         },
         {
-            "satellites": ["G15", "G10"],
+            "satellites": ["G10", "G23"],
             "bands": ["L1_L2"]
         },
         {
-            "satellites": ["G23", "G10"],
-            "bands": ["L1_L2", "L1_L5"]
-        },
-        {
-            "satellites": ["G24", "G10"],
-            "bands": ["L1_L2", "L1_L5"]
-        },
-        {
-            "satellites": ["G25", "G10"],
-            "bands": ["L1_L2", "L1_L5"]
-        },
-        {
-            "satellites": ["G28", "G10"],
-            "bands": ["L1_L2", "L1_L5"]
-        },
-        {
-            "satellites": ["G29", "G10"],
+            "satellites": ["G10", "G24"],
             "bands": ["L1_L2"]
         },
         {
-            "satellites": ["G32", "G10"],
-            "bands": ["L1_L2", "L1_L5"]
+            "satellites": ["G10", "G25"],
+            "bands": ["L1_L2"]
         },
         {
-            "satellites": ["J02", "J07"],
-            "bands": ["L1_L2", "L1_L5"]
-        },
-        {
-            "satellites": ["J03", "J07"],
-            "bands": ["L1_L2", "L1_L5"]
+            "satellites": ["G10", "G32"],
+            "bands": ["L1_L2"]
         }
-
     ],
     "description": "Satellite pairs for ambiguity resolution analysis"
 }

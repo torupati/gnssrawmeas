@@ -692,6 +692,17 @@ def main():
         )
         return 1
 
+    # Load paring setting
+    satpair_path = Path(args.satpair)
+    if not satpair_path.exists():
+        logger.error(f"satpair JSON file not found: {satpair_path}")
+        return 1
+    try:
+        sat_pairs = _load_satpair_json(satpair_path)
+    except (ValueError, json.JSONDecodeError) as exc:
+        logger.error(f"Invalid satpair JSON: {exc}")
+        return 1
+
     # Load input and reference RINEX observation files
     rinex_path = Path(args.rinex_obs)
     ref_path = Path(args.rinex_ref)
@@ -724,15 +735,6 @@ def main():
 
     logger.info("... pairing observations...")
     paired = pair_observations(epochs, ref_epochs)
-    satpair_path = Path(args.satpair)
-    if not satpair_path.exists():
-        logger.error(f"satpair JSON file not found: {satpair_path}")
-        return 1
-    try:
-        sat_pairs = _load_satpair_json(satpair_path)
-    except (ValueError, json.JSONDecodeError) as exc:
-        logger.error(f"Invalid satpair JSON: {exc}")
-        return 1
     update_combined_observation(paired, sat_pairs)
     paired_json_path = Path(args.paired_json)
     paired_json_path.parent.mkdir(parents=True, exist_ok=True)
@@ -754,7 +756,7 @@ def main():
         logger.info("Generating paired plots...")
         plot_paired_satellite_observations(paired, output_dir, plot_mode=args.plot_mode)
         logger.info("Generating combined observation plots...")
-        plot_combined_observations(paired, output_dir, plot_mode=args.plot_mode)
+    plot_combined_observations(paired, output_dir, plot_mode=args.plot_mode)
 
     return 0
 

@@ -55,6 +55,7 @@ class AmbiguityObservation:
 
     widelane: float  # in cycle
     ionofree: float  # in cycle
+    geofree: float = 0.0  # in cycle (optional, default to 0.0)
 
 
 @dataclass
@@ -171,11 +172,13 @@ def compute_dual_frequency_ambiguity(
     Returns:
         AmbiguityObservation with widelane and ionofree ambiguities in cycles
     """
-    # Compute widelane ambiguity (cycles)
+    # Compute MW combination (cycles)
     wl_wlen = CLIGHT / (freq1 - freq2)
-    nl_pr = freq1 / (freq1 + freq2) * pr_f1 + freq2 / (freq1 + freq2) * pr_f2
-    wl_cp = cp_f1 - cp_f2
-    amb_wl = wl_cp - nl_pr / wl_wlen
+    cp_wl = cp_f1 - cp_f2
+    pr_nl = (freq1 / (freq1 + freq2)) * pr_f1 + (freq2 / (freq1 + freq2)) * pr_f2
+    amb_wl = (
+        cp_wl - pr_nl / wl_wlen
+    )  # geometry-free and ionosphere-free ambiguity (N1 - N2)
 
     # Compute ionofree ambiguity (cycles)
     pr_if = (freq1**2 * pr_f1 - freq2**2 * pr_f2) / (freq1**2 - freq2**2)
@@ -187,7 +190,10 @@ def compute_dual_frequency_ambiguity(
         + (freq2**2) / (freq1**2 - freq2**2) * wlen2
     )
 
-    return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono)
+    # Compute geometry-free ambiguity (cycles)
+    amb_geofree = (cp_f1 * wlen1 - cp_f2 * wlen2) / (wlen1 - wlen2)
+
+    return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono, geofree=amb_geofree)
 
 
 def compute_ambiguities_for_satellite(
