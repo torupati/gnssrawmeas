@@ -175,6 +175,15 @@ def _collect_satellite_data(epochs: list[EpochObservations]) -> dict[str, dict]:
                 satellite_data[sat_id]["ambiguities"][comb_name]["ionofree"][
                     "values"
                 ].append(amb_obs.ionofree)
+                satellite_data[sat_id]["ambiguities"][comb_name].setdefault(
+                    "geofree", {"times": [], "values": []}
+                )
+                satellite_data[sat_id]["ambiguities"][comb_name]["geofree"][
+                    "times"
+                ].append(epoch.datetime)
+                satellite_data[sat_id]["ambiguities"][comb_name]["geofree"][
+                    "values"
+                ].append(amb_obs.geofree)
 
     return satellite_data
 
@@ -225,6 +234,7 @@ def plot_paired_satellite_observations(
             for comb_data in data["ambiguities"].values():
                 all_times.extend(comb_data["widelane"]["times"])
                 all_times.extend(comb_data["ionofree"]["times"])
+                all_times.extend(comb_data.get("geofree", {}).get("times", []))
 
         num_ambiguity_combos = len(
             set(data_left["ambiguities"].keys()) | set(data_right["ambiguities"].keys())
@@ -235,6 +245,7 @@ def plot_paired_satellite_observations(
         show_snr = plot_mode in {1, 2, 3, 4}
         show_widelane = plot_mode in {1, 2, 3}
         show_ionofree = plot_mode in {1, 3}
+        show_geofree = plot_mode in {1, 3}
 
         if plot_mode == 4:
             has_ambiguity = False
@@ -248,6 +259,8 @@ def plot_paired_satellite_observations(
             if show_widelane:
                 num_rows += num_ambiguity_combos
             if show_ionofree:
+                num_rows += num_ambiguity_combos
+            if show_geofree:
                 num_rows += num_ambiguity_combos
 
         fig, axes = plt.subplots(
@@ -357,6 +370,26 @@ def plot_paired_satellite_observations(
                                     color=color_if,
                                 )
                         ax.set_ylabel(f"Ionofree {comb_name} (cycles)")
+                        ax.legend()
+                        ax.grid(True)
+                    plot_idx += 1
+
+                if show_geofree:
+                    for ax, data in zip(axes[plot_idx], (data_left, data_right)):
+                        comb_data = data["ambiguities"].get(comb_name)
+                        if comb_data:
+                            gf_times = comb_data.get("geofree", {}).get("times", [])
+                            gf_values = comb_data.get("geofree", {}).get("values", [])
+                            if gf_values:
+                                ax.plot(
+                                    gf_times,
+                                    gf_values,
+                                    marker=".",
+                                    linestyle="None",
+                                    label=f"{comb_name} GF",
+                                    color=color_if,
+                                )
+                        ax.set_ylabel(f"Geofree {comb_name} (cycles)")
                         ax.legend()
                         ax.grid(True)
                     plot_idx += 1

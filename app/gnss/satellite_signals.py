@@ -191,7 +191,9 @@ def compute_dual_frequency_ambiguity(
     )
 
     # Compute geometry-free ambiguity (cycles)
-    amb_geofree = (cp_f1 * wlen1 - cp_f2 * wlen2) / (wlen1 - wlen2)
+    amb_geofree = (cp_f1 * wlen1 - cp_f2 * wlen2) / (wlen1 - wlen2) - np.round(
+        amb_wl
+    ) / (wlen1 - wlen2)
 
     return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono, geofree=amb_geofree)
 
