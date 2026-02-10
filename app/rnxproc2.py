@@ -766,8 +766,11 @@ def main():
         logger.error("Input or reference epochs are empty")
         return 1
 
-    logger.info("... pairing observations...")
+    logger.info("... smoothing pserudorange with carrier phase...")
+
+    logger.info("... pairing observations between 2 observation files...")
     paired = pair_observations(epochs, ref_epochs)
+    logger.info("... pairing observations between 2 satellites...")
     update_combined_observation(paired, sat_pairs)
     paired_json_path = Path(args.paired_json)
     paired_json_path.parent.mkdir(parents=True, exist_ok=True)
