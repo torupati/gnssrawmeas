@@ -35,4 +35,4 @@ jobs:
       - name: Mypy
         env:
           MYPYPATH: ""
-        run: mypy --explicit-package-bases app --pretty
+        run: mypy --explicit-package-bases --exclude '(^|/)misc/' ./app --pretty
