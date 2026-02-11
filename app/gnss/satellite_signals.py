@@ -31,6 +31,14 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="xarray")
 
 @dataclass
 class SatelliteSignalObservation:
+    """Observation data for a single satellite signal band.
+    Attributes:
+        pseudorange: Pseudorange measurement in meters
+        carrier_phase: Carrier phase measurement in cycles
+        doppler_: Doppler measurement in Hz
+        snr: Signal-to-noise ratio in dB-Hz
+    """
+
     pseudorange: float  # in meters
     carrier_phase: float  # in cycles
     doppler_: float  # in Hz
@@ -39,12 +47,27 @@ class SatelliteSignalObservation:
 
 @dataclass
 class AmbiguityObservation:
+    """Ambiguity observations for dual-frequency combinations.
+    Attributes:
+        widelane: Widelane ambiguity in cycles
+        ionofree: Ionosphere-free ambiguity in cycles
+        geofree: Geometry-free ambiguity in cycles (optional, defaults to 0.0)
+    """
+
     widelane: float  # in cycle
     ionofree: float  # in cycle
+    geofree: float = 0.0  # in cycle (optional, default to 0.0)
 
 
 @dataclass
 class SatelliteObservation:
+    """GNSS observations for a single satellite.
+    Attributes:
+        prn: Satellite PRN number
+        signals: Dict of band name to SatelliteSignalObservation
+        ambiguities: Dict of combination name to AmbiguityObservation
+    """
+
     prn: int
     signals: dict  # key: band (str), value: SatelliteSignalObservation
     ambiguities: (
@@ -150,11 +173,13 @@ def compute_dual_frequency_ambiguity(
     Returns:
         AmbiguityObservation with widelane and ionofree ambiguities in cycles
     """
-    # Compute widelane ambiguity (cycles)
+    # Compute MW combination (cycles)
     wl_wlen = CLIGHT / (freq1 - freq2)
-    nl_pr = freq1 / (freq1 + freq2) * pr_f1 + freq2 / (freq1 + freq2) * pr_f2
-    wl_cp = cp_f1 - cp_f2
-    amb_wl = wl_cp - nl_pr / wl_wlen
+    cp_wl = cp_f1 - cp_f2
+    pr_nl = (freq1 / (freq1 + freq2)) * pr_f1 + (freq2 / (freq1 + freq2)) * pr_f2
+    amb_wl = (
+        cp_wl - pr_nl / wl_wlen
+    )  # geometry-free and ionosphere-free ambiguity (N1 - N2)
 
     # Compute ionofree ambiguity (cycles)
     pr_if = (freq1**2 * pr_f1 - freq2**2 * pr_f2) / (freq1**2 - freq2**2)
@@ -166,7 +191,12 @@ def compute_dual_frequency_ambiguity(
         + (freq2**2) / (freq1**2 - freq2**2) * wlen2
     )
 
-    return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono)
+    # Compute geometry-free ambiguity (cycles)
+    amb_geofree = (cp_f1 * wlen1 - cp_f2 * wlen2) / (wlen1 - wlen2) - np.round(
+        amb_wl
+    ) / (wlen1 - wlen2)
+
+    return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono, geofree=amb_geofree)
 
 
 def compute_ambiguities_for_satellite(

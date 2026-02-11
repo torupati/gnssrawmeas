@@ -38,6 +38,8 @@ dev = [
 python_version = "3.9"
 # Check only our package by default
 packages = ["app"]
+# Exclude misc utilities from CI type checking
+exclude = "(^|/)misc/"
 # Avoid duplicate module mapping when running in environments that add extra roots
 explicit_package_bases = true
 # Third-party libs without type stubs
@@ -46,3 +48,7 @@ warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
 no_implicit_optional = true
+
+[tool.ruff]
+# Exclude misc utilities from linting
+exclude = ["misc"]

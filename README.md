@@ -62,6 +62,10 @@ uv python pin 3.11
 - [RINEX 3.05](https://files.igs.org/pub/data/format/rinex305.pdf) - Latest version
 - [RINEX 3.04](https://files.igs.org/pub/data/format/rinex304.pdf) - Widely used version
 
+## Reference Textbook
+
+- [ESA GNSS Book, Volume I (TM-23)](https://gssc.esa.int/navipedia/GNSS_Book/ESA_GNSS-Book_TM-23_Vol_I.pdf) - Comprehensive GNSS fundamentals and measurement theory.
+
 ## Type Checking (mypy)
 
 You can run static type checks with mypy.

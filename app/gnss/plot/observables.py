@@ -85,6 +85,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                         satellite_data[sat_id]["ambiguities"][comb_name] = {
                             "widelane": {"times": [], "values": []},
                             "ionofree": {"times": [], "values": []},
+                            "geofree": {"times": [], "values": []},
                         }
                     satellite_data[sat_id]["ambiguities"][comb_name]["widelane"][
                         "times"
@@ -98,6 +99,12 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                     satellite_data[sat_id]["ambiguities"][comb_name]["ionofree"][
                         "values"
                     ].append(amb_obs.ionofree)
+                    satellite_data[sat_id]["ambiguities"][comb_name]["geofree"][
+                        "times"
+                    ].append(epoch.datetime)
+                    satellite_data[sat_id]["ambiguities"][comb_name]["geofree"][
+                        "values"
+                    ].append(amb_obs.geofree)
 
     # Create plots for each satellite
     for sat_id, data in satellite_data.items():
@@ -116,6 +123,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
         for comb_data in data["ambiguities"].values():
             all_times.extend(comb_data["widelane"]["times"])
             all_times.extend(comb_data["ionofree"]["times"])
+            all_times.extend(comb_data["geofree"]["times"])
         if all_times:
             common_start = min(all_times)
             common_end = max(all_times)
@@ -131,7 +139,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
         show_snr = plot_mode in {1, 2, 3, 4}
         show_widelane = plot_mode in {1, 2, 3}
         show_ionofree = plot_mode in {1, 3}
-
+        show_geofree = plot_mode in {1, 3}
         if plot_mode == 4:
             has_ambiguity = False
 
@@ -146,7 +154,10 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                 num_rows += num_ambiguity_combos
             if show_ionofree:
                 num_rows += num_ambiguity_combos
-        fig, axes = plt.subplots(num_rows, 1, figsize=(12, 3 * num_rows), sharex=True)
+            if show_geofree:
+                num_rows += num_ambiguity_combos
+
+        fig, axes = plt.subplots(num_rows, 1, figsize=(10, 3 * num_rows), squeeze=False)
         fig.suptitle(f"Satellite {sat_id} Observations", fontsize=16)
 
         # Handle single subplot case (convert to list)
@@ -258,6 +269,23 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                             color=color_if,
                         )
                     axes[plot_idx].set_ylabel(f"Ionofree {comb_name} (cycles)")
+                    axes[plot_idx].legend()
+                    axes[plot_idx].grid(True)
+                    plot_idx += 1
+                # Plot geofree ambiguity for this combination
+                if show_geofree:
+                    gf_times = comb_data["geofree"]["times"]
+                    gf_values = comb_data["geofree"]["values"]
+                    if gf_values:
+                        axes[plot_idx].plot(
+                            gf_times,
+                            gf_values,
+                            marker=".",
+                            linestyle="None",
+                            label=f"{comb_name} GF",
+                            color=color_if,
+                        )
+                    axes[plot_idx].set_ylabel(f"Geofree {comb_name} (cycles)")
                     axes[plot_idx].legend()
                     axes[plot_idx].grid(True)
                     plot_idx += 1
