@@ -792,7 +792,7 @@ def main():
         logger.info("Generating paired plots...")
         plot_paired_satellite_observations(paired, output_dir, plot_mode=args.plot_mode)
         logger.info("Generating combined observation plots...")
-    plot_combined_observations(paired, output_dir, plot_mode=args.plot_mode)
+        plot_combined_observations(paired, output_dir, plot_mode=args.plot_mode)
 
     return 0
 
