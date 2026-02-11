@@ -3,22 +3,49 @@ GPS Ephemeris handling module
 Provides GPS ephemeris data structures and satellite position computation.
 """
 
-import json
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple, Optional
 
 from app.gnss.constants import CLIGHT
-from app.spp import datetime_to_gps_week_seconds
 
 
 # Physical constants
 GM_WGS84 = 3.986005e14  # WGS84 Earth's gravitational constant [m^3/s^2]
+GM_WGS84 = 3.986005e14  # WGS84 Earth's gravitational constant [m^3/s^2]
 MU_GPS = 3.986005e14  # GPS Earth's gravitational constant [m^3/s^2]
 OMEGA_E = 7.2921151467e-5  # Earth's rotation rate [rad/s]
+C = 299792458.0  # Speed of light [m/s]
 F = -4.442807633e-10  # Relativistic correction factor
+F_REL = -4.442807633e-10
+
+# GPS time reference epoch (start of GPS time)
+GPS_EPOCH = datetime(1980, 1, 6, 0, 0, 0)
 
 
+def datetime_to_gps_week_seconds(dt: datetime) -> tuple[int, float]:
+    """
+    Convert a UTC datetime to GPS week number and seconds of week.
+
+    Args:
+        dt: datetime in UTC (timezone-aware or naive). Naive datetimes are
+            treated as UTC.
+
+    Returns:
+        A tuple (gps_week, sow) where:
+            gps_week: GPS week number since GPS_EPOCH.
+            sow: seconds of week [0, 604800).
+    """
+    # Ensure we operate in UTC and with a naive datetime for arithmetic
+    if dt.tzinfo is not None:
+        dt_utc = dt.astimezone(timezone.utc).replace(tzinfo=None)
+    else:
+        dt_utc = dt
+
+    delta = dt_utc - GPS_EPOCH
+    total_seconds = delta.total_seconds()
+    week = int(total_seconds // 604800.0)
+    sow = total_seconds - week * 604800.0
+    return week, sow
 class GPSEphemeris:
     """GPS satellite ephemeris class"""
 
