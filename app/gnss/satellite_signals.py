@@ -51,6 +51,7 @@ class AmbiguityObservation:
     Attributes:
         widelane: Widelane ambiguity in cycles
         ionofree: Ionosphere-free ambiguity in cycles
+        geofree: Geometry-free ambiguity in cycles (optional, defaults to 0.0)
     """
 
     widelane: float  # in cycle
