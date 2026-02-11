@@ -456,12 +456,14 @@ def compute_satellite_position(
     # Mean anomaly
     M = eph.M0 + n * tk
 
-    # Solve eccentric anomaly using Newton's method
+    # Solve eccentric anomaly using Newton-Raphson method for Kepler's equation: E - e*sin(E) = M
     E = M
     for _ in range(15):
-        E_old = E
-        E = M + eph.e * np.sin(E)
-        if abs(E - E_old) < 1e-13:
+        f = E - eph.e * np.sin(E) - M
+        f_prime = 1.0 - eph.e * np.cos(E)
+        delta_E = -f / f_prime
+        E += delta_E
+        if abs(delta_E) < 1e-13:
             break
 
     # True anomaly
