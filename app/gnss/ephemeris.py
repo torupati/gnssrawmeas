@@ -3,18 +3,18 @@ GPS Ephemeris handling module
 Provides GPS ephemeris data structures and satellite position computation.
 """
 
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple, Optional
 
+import numpy as np
 from app.gnss.constants import CLIGHT
 
 
 # Physical constants
 GM_WGS84 = 3.986005e14  # WGS84 Earth's gravitational constant [m^3/s^2]
-GM_WGS84 = 3.986005e14  # WGS84 Earth's gravitational constant [m^3/s^2]
 MU_GPS = 3.986005e14  # GPS Earth's gravitational constant [m^3/s^2]
 OMEGA_E = 7.2921151467e-5  # Earth's rotation rate [rad/s]
-C = 299792458.0  # Speed of light [m/s]
 F = -4.442807633e-10  # Relativistic correction factor
 F_REL = -4.442807633e-10
 
@@ -46,6 +46,8 @@ def datetime_to_gps_week_seconds(dt: datetime) -> tuple[int, float]:
     week = int(total_seconds // 604800.0)
     sow = total_seconds - week * 604800.0
     return week, sow
+
+
 class GPSEphemeris:
     """GPS satellite ephemeris class"""
 
