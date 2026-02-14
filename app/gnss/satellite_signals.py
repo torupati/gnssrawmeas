@@ -2,6 +2,7 @@ from logging import getLogger
 import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, List, Dict
 
 import numpy as np
@@ -398,6 +399,8 @@ def save_gnss_observations_to_json(
         """Convert objects to JSON-serializable format."""
         if isinstance(obj, datetime):
             return obj.isoformat()
+        elif isinstance(obj, Path):
+            return str(obj)
         elif isinstance(obj, dict):
             return {k: convert_to_json_serializable(v) for k, v in obj.items()}
         elif isinstance(obj, list):
@@ -411,7 +414,7 @@ def save_gnss_observations_to_json(
         import json
 
         output_data = {
-            "filename": output_file,
+            "filename": convert_to_json_serializable(output_file),
             "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
         }
         json.dump(output_data, f, indent=2)
