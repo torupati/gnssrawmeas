@@ -4,6 +4,7 @@ from pathlib import Path
 from logging import getLogger, basicConfig, INFO
 
 
+from app.gnss.epoch_series import smoothing_code_range_of_receiver
 from app.gnss.satellite_signals import (
     EpochObservations,
     parse_rinex_observation_file,
@@ -54,6 +55,32 @@ def main():
             "(default: .signal_code_map.json)"
         ),
     )
+    parser.add_argument(
+        "--carrier-smoothing",
+        action="store_true",
+        help="Enable carrier phase smoothing of pseudorange",
+    )
+    parser.add_argument(
+        "--carrier-smoothing-slip-threshold",
+        type=float,
+        default=10.0,
+        help=(
+            "Cycle-slip detection threshold in meters for carrier smoothing "
+            "(default: 10.0)"
+        ),
+    )
+    parser.add_argument(
+        "--carrier-smoothing-code-noise",
+        type=float,
+        default=3.0,
+        help="Code noise sigma in meters for carrier smoothing (default: 3.0)",
+    )
+    parser.add_argument(
+        "--carrier-smoothing-carrier-noise",
+        type=float,
+        default=0.02,
+        help="Carrier noise sigma in meters for carrier smoothing (default: 0.02)",
+    )
 
     args = parser.parse_args()
 
@@ -93,6 +120,15 @@ def main():
     logger.info(
         f"... parsed {len(epochs)} epochs. {epochs[0].datetime if epochs else 'N/A'} to {epochs[-1].datetime if epochs else 'N/A'}"
     )
+
+    if args.carrier_smoothing:
+        logger.info("Applying carrier phase smoothing to pseudorange...")
+        epochs = smoothing_code_range_of_receiver(
+            epochs,
+            code_noise_m=args.carrier_smoothing_code_noise,
+            carrier_noise_m=args.carrier_smoothing_carrier_noise,
+            slip_threshold_m=args.carrier_smoothing_slip_threshold,
+        )
 
     # Save to JSON if requested
     if args.json:
