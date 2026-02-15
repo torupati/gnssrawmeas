@@ -31,3 +31,28 @@ This table summarizes commonly used GNSS carrier frequencies and their nominal c
 | SBAS | L5 | L5 | 1176.45 | 1166.220 | 1186.680 | Augmentation on L5 |
 
 Ranges are approximate occupied bandwidths for the primary civil signal in each band unless noted; GLONASS ranges are min/max across FDMA channels.
+
+## L7 and L8 Frequency Bands
+
+While GPS traditionally uses L1, L2, and L5, the broader GNSS community has adopted additional frequency bands:
+
+### L7 Band (~1207.14 MHz)
+The L7 designation refers to frequencies in the 1207.14 MHz band:
+- **Galileo E5b**: 1207.14 MHz (European system)
+- **BeiDou B2b**: 1207.14 MHz (Chinese system)
+- **GLONASS G3**: 1202.025 MHz (Russian system - adjacent band)
+
+This band is used for high-accuracy and open-service positioning signals.
+
+### L8 Band (~1278.75 MHz)
+The L8 designation refers to frequencies in the 1278.75 MHz band:
+- **QZSS L6**: 1278.75 MHz (Japanese system - high-precision LEX service)
+- **Galileo E6**: 1278.75 MHz (European system - commercial/safety-critical signals)
+- **BeiDou B3I**: 1268.52 MHz (Chinese system - regional/open services, adjacent band)
+
+This band is typically reserved for authenticated, high-precision, or safety-critical applications.
+
+### Wavelength Reference
+For signal processing, the wavelengths corresponding to these bands are:
+- **L7 (1207.14 MHz)**: λ = 0.260476 m (Galileo E5b, also called L7)
+- **L8 (1278.75 MHz)**: λ = 0.209375 m (QZSS L6, Galileo E6, also called L8)
