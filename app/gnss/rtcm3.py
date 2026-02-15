@@ -43,6 +43,29 @@ def _signal_wavelength(sig_code: str) -> float:
     return wlen_L1
 
 
+def _signal_code_to_band_name(sig_code: str) -> str:
+    """Convert RTCM3 signal code to band name (L1, L2, L5, L7, L8).
+
+    Args:
+        sig_code: Signal code like "1C", "2W", "5Q", "7Q", "8Q"
+
+    Returns:
+        Band name like "L1", "L2", "L5", "L7", "L8"
+    """
+    if sig_code[0] in ["1"]:
+        return "L1"
+    elif sig_code[0] in ["2"]:
+        return "L2"
+    elif sig_code[0] in ["5"]:
+        return "L5"
+    elif sig_code[0] in ["7"]:
+        return "L7"
+    elif sig_code[0] in ["8"]:
+        return "L8"
+    else:
+        return "L1"  # Default to L1
+
+
 def _ensure_list(value):
     if value is None:
         return []
@@ -179,7 +202,9 @@ def group_observations_by_satellite(
     for prn, sig, obs in observations:
         if prn not in by_prn:
             by_prn[prn] = SatelliteObservation(prn=prn, signals={}, ambiguities={})
-        by_prn[prn].signals[sig] = obs
+        # Convert signal code (e.g., "1C") to band name (e.g., "L1")
+        band_name = _signal_code_to_band_name(str(sig))
+        by_prn[prn].signals[band_name] = obs
     return [by_prn[prn] for prn in sorted(by_prn)]
 
 

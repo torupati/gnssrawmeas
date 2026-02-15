@@ -9,6 +9,7 @@ from app.gnss.satellite_signals import (
     EpochObservations,
     parse_rinex_observation_file,
     save_gnss_observations_to_json,
+    calculate_combined_observations,
 )
 from app.gnss.rtcm3 import read_rtcm3_file
 from app.gnss.plot.observables import plot_satellite_observations
@@ -159,6 +160,10 @@ def main():
             carrier_noise_m=args.carrier_smoothing_carrier_noise,
             slip_threshold_m=args.carrier_smoothing_slip_threshold,
         )
+
+    # Calculate combined observations
+    logger.info("Calculating combined observations...")
+    epochs = calculate_combined_observations(epochs)
 
     # Save to JSON if requested
     if args.json:

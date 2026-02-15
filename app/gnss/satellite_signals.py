@@ -301,6 +301,27 @@ def compute_ambiguities_for_satellite(
     return ambiguities
 
 
+def calculate_combined_observations(
+    obss: list[EpochObservations],
+) -> list[EpochObservations]:
+    """Calculate combined observations from multiple epochs. This can be used to combine observations from two receivers or to create averaged observations.
+
+    Args:
+        obss (list[EpochObservations]): List of EpochObservations to combine
+
+    Returns:
+        list[EpochObservations]: List of combined EpochObservations
+    """
+    for obs in obss:
+        for sat_obs in obs.satellites_gps:
+            sat_obs.ambiguities = compute_ambiguities_for_satellite(sat_obs, "GPS")
+        for sat_obs in obs.satellites_qzss:
+            sat_obs.ambiguities = compute_ambiguities_for_satellite(sat_obs, "QZSS")
+        for sat_obs in obs.satellites_galileo:
+            sat_obs.ambiguities = compute_ambiguities_for_satellite(sat_obs, "Galileo")
+    return obss
+
+
 def parse_rinex_observation_file(
     file_path: str,
     signal_code_map: dict[str, list[list[str]]],
@@ -428,11 +449,13 @@ def save_gnss_observations_to_json(
         else:
             return obj
 
-    with open(output_file, "w", encoding="utf-8") as f:
-        import json
+    import json
 
-        output_data = {
-            "filename": output_file,
-            "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
-        }
-        json.dump(output_data, f, indent=2)
+    output_data = {
+        "filename": str(output_file),
+        "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
+    }
+    json_str = json.dumps(output_data, indent=2)
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write(json_str)
