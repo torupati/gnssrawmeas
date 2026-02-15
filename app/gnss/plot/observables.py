@@ -160,9 +160,8 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
         fig, axes = plt.subplots(num_rows, 1, figsize=(10, 3 * num_rows), squeeze=False)
         fig.suptitle(f"Satellite {sat_id} Observations", fontsize=16)
 
-        # Handle single subplot case (convert to list)
-        if num_rows == 1:
-            axes = [axes]
+        # Flatten to a 1D list of Axes for consistent indexing.
+        axes = axes.flatten()
 
         plot_idx = 0
 

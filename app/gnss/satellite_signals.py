@@ -428,13 +428,11 @@ def save_gnss_observations_to_json(
         else:
             return obj
 
-    import json
-
-    output_data = {
-        "filename": str(output_file),
-        "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
-    }
-    json_str = json.dumps(output_data, indent=2)
-
     with open(output_file, "w", encoding="utf-8") as f:
-        f.write(json_str)
+        import json
+
+        output_data = {
+            "filename": output_file,
+            "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
+        }
+        json.dump(output_data, f, indent=2)
