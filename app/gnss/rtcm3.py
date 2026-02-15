@@ -10,7 +10,7 @@ from .satellite_signals import (
     SatelliteObservation,
     SatelliteSignalObservation,
 )
-from .constants import CLIGHT, wlen_L1, wlen_L2, wlen_L5
+from .constants import CLIGHT, wlen_L1, wlen_L2, wlen_L5, wlen_L7, wlen_L8
 from .constants import GPS_EPOCH
 
 
@@ -41,6 +41,29 @@ def _signal_wavelength(sig_code: str) -> float:
     if sig_code.startswith("5"):
         return wlen_L5
     return wlen_L1
+
+
+def _band_wavelength(band_name: str) -> float:
+    """Get wavelength from band name (L1, L2, L5, L7, L8).
+
+    Args:
+        band_name: Band name like "L1", "L2", "L5", "L7", "L8"
+
+    Returns:
+        Wavelength in meters
+    """
+    if band_name == "L1":
+        return wlen_L1
+    elif band_name == "L2":
+        return wlen_L2
+    elif band_name == "L5":
+        return wlen_L5
+    elif band_name == "L7":
+        return wlen_L7
+    elif band_name == "L8":
+        return wlen_L8
+    else:
+        return wlen_L1  # Default to L1
 
 
 def _signal_code_to_band_name(sig_code: str) -> str:
@@ -182,7 +205,12 @@ def parse_rtcm_msm7_signal_observations(msg):
         )
         rough_range_m = (rough_range_ms + rough_mod_ms) * 1e-3 * CLIGHT
         pseudorange_m = rough_range_m + float(pr_list[idx]) * 0.0001
-        phase_range_m = rough_range_m + float(cp_list[idx]) * 0.0001
+
+        # DF405 is in wavelength units, so convert to phase_range in meters first
+        # then to cycles
+        fine_phase_wavelengths = float(cp_list[idx])
+        phase_range_m = rough_range_m + fine_phase_wavelengths * wavelength
+
         # Combine rough rate (DF399 in m/s) with fine rate (DF406 in 0.0001 m/s)
         range_rate_mps = float(rough_rate) + float(dp_list[idx]) * 0.0001
         obs = SatelliteSignalObservation(

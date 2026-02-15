@@ -6,7 +6,7 @@ import sys
 # Add parent directory to path to import from app
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.gnss.rtcm3 import read_rtcm3_file, _signal_wavelength
+from app.gnss.rtcm3 import read_rtcm3_file, _band_wavelength
 
 
 def main() -> None:
@@ -25,10 +25,11 @@ def main() -> None:
         ]:
             for sat in sat_list:
                 for sig, obs in sat.signals.items():
-                    wavelength = _signal_wavelength(sig)
+                    wavelength = _band_wavelength(sig)
                     expected_cycles = obs.pseudorange / wavelength
                     print(f"{system_code}{sat.prn:02d} {sig}: {obs}")
                     print(f"  wlen={wavelength:.6f}m, exp_cycles={expected_cycles:.1f}, obs_cycles={obs.carrier_phase:.1f}")
+        break  # Just print the first epoch for demonstration
 
 
 if __name__ == "__main__":

@@ -456,6 +456,6 @@ def save_gnss_observations_to_json(
         "epochs": [convert_to_json_serializable(epoch) for epoch in epochs],
     }
     json_str = json.dumps(output_data, indent=2)
-
+    Path(output_file).parent.mkdir(parents=True, exist_ok=True)
     with open(output_file, "w", encoding="utf-8") as f:
         f.write(json_str)
