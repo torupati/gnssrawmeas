@@ -4,11 +4,14 @@ from pathlib import Path
 from logging import getLogger, basicConfig, INFO
 
 
+from app.gnss.epoch_series import smoothing_code_range_of_receiver
 from app.gnss.satellite_signals import (
     EpochObservations,
     parse_rinex_observation_file,
     save_gnss_observations_to_json,
+    calculate_combined_observations,
 )
+from app.gnss.rtcm3 import read_rtcm3_file
 from app.gnss.plot.observables import plot_satellite_observations
 
 logger = getLogger(__name__)
@@ -18,7 +21,19 @@ def main():
     parser = argparse.ArgumentParser(
         description="Process RINEX observation files and generate plots"
     )
-    parser.add_argument("rinex_obs", type=str, help="Path to RINEX observation file")
+    parser.add_argument("input_file", type=str, help="Path to RINEX or RTCM3 file")
+    parser.add_argument(
+        "--input-type",
+        type=str,
+        choices=["RINEX3", "RTCM3"],
+        default="RINEX3",
+        help="Input file type: RINEX3 or RTCM3 (default: RINEX3)",
+    )
+    parser.add_argument(
+        "--gpsweek",
+        type=int,
+        help="GPS week number (required when input-type=RTCM3)",
+    )
     parser.add_argument(
         "--outdir",
         type=str,
@@ -51,8 +66,34 @@ def main():
         default=str(Path(__file__).parent / ".signal_code_map.json"),
         help=(
             "Path to JSON file that defines signal_code_map "
-            "(default: .signal_code_map.json)"
+            "(required for RINEX3, default: .signal_code_map.json)"
         ),
+    )
+    parser.add_argument(
+        "--carrier-smoothing",
+        action="store_true",
+        help="Enable carrier phase smoothing of pseudorange",
+    )
+    parser.add_argument(
+        "--carrier-smoothing-slip-threshold",
+        type=float,
+        default=10.0,
+        help=(
+            "Cycle-slip detection threshold in meters for carrier smoothing "
+            "(default: 10.0)"
+        ),
+    )
+    parser.add_argument(
+        "--carrier-smoothing-code-noise",
+        type=float,
+        default=3.0,
+        help="Code noise sigma in meters for carrier smoothing (default: 3.0)",
+    )
+    parser.add_argument(
+        "--carrier-smoothing-carrier-noise",
+        type=float,
+        default=0.02,
+        help="Carrier noise sigma in meters for carrier smoothing (default: 0.02)",
     )
 
     args = parser.parse_args()
@@ -61,9 +102,9 @@ def main():
     basicConfig(level=INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
     # Check if input file exists
-    rinex_path = Path(args.rinex_obs)
-    if not rinex_path.exists():
-        logger.error(f"RINEX file not found: {rinex_path}")
+    input_path = Path(args.input_file)
+    if not input_path.exists():
+        logger.error(f"Input file not found: {input_path}")
         return 1
 
     # Create output directory if it doesn't exist
@@ -71,28 +112,58 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Output directory: {output_dir}")
 
-    # Load signal code map
-    signal_code_map_path = Path(args.signal_code_map)
-    if not signal_code_map_path.exists():
-        logger.error(f"Signal code map file not found: {signal_code_map_path}")
-        return 1
-    try:
-        with signal_code_map_path.open("r", encoding="utf-8") as f:
-            signal_code_map = json.load(f)
-    except json.JSONDecodeError as exc:
-        logger.error(
-            f"Invalid JSON in signal code map file: {signal_code_map_path} ({exc})"
+    # Parse input file based on input type
+    if args.input_type == "RINEX3":
+        # Load signal code map for RINEX3
+        signal_code_map_path = Path(args.signal_code_map)
+        if not signal_code_map_path.exists():
+            logger.error(f"Signal code map file not found: {signal_code_map_path}")
+            return 1
+        try:
+            with signal_code_map_path.open("r", encoding="utf-8") as f:
+                signal_code_map = json.load(f)
+        except json.JSONDecodeError as exc:
+            logger.error(
+                f"Invalid JSON in signal code map file: {signal_code_map_path} ({exc})"
+            )
+            return 1
+
+        # Parse RINEX file
+        logger.info(f"Parsing RINEX3 file: {input_path}")
+        epochs: list[EpochObservations] = parse_rinex_observation_file(
+            str(input_path), signal_code_map
         )
+        logger.info(
+            f"... parsed {len(epochs)} epochs. {epochs[0].datetime if epochs else 'N/A'} to {epochs[-1].datetime if epochs else 'N/A'}"
+        )
+    elif args.input_type == "RTCM3":
+        # Validate gpsweek argument
+        if args.gpsweek is None:
+            logger.error("--gpsweek is required when input-type=RTCM3")
+            return 1
+
+        # Parse RTCM3 file
+        logger.info(f"Parsing RTCM3 file: {input_path} (GPS week: {args.gpsweek})")
+        epochs: list[EpochObservations] = read_rtcm3_file(input_path, args.gpsweek)
+        logger.info(
+            f"... parsed {len(epochs)} epochs. {epochs[0].datetime if epochs else 'N/A'} to {epochs[-1].datetime if epochs else 'N/A'}"
+        )
+    else:
+        logger.error(f"Unknown input type: {args.input_type}")
         return 1
 
-    # Parse RINEX file
-    logger.info(f"Parsing RINEX file: {rinex_path}")
-    epochs: list[EpochObservations] = parse_rinex_observation_file(
-        str(rinex_path), signal_code_map
-    )
-    logger.info(
-        f"... parsed {len(epochs)} epochs. {epochs[0].datetime if epochs else 'N/A'} to {epochs[-1].datetime if epochs else 'N/A'}"
-    )
+    if args.carrier_smoothing:
+        logger.info("Applying carrier phase smoothing to pseudorange...")
+        epochs = smoothing_code_range_of_receiver(
+            epochs,
+            code_noise_m=args.carrier_smoothing_code_noise,
+            carrier_noise_m=args.carrier_smoothing_carrier_noise,
+            slip_threshold_m=args.carrier_smoothing_slip_threshold,
+        )
+
+    # Calculate combined observations
+    logger.info("Calculating combined observations...")
+    epochs = calculate_combined_observations(epochs)
 
     # Save to JSON if requested
     if args.json:
