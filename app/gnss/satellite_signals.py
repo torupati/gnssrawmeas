@@ -44,6 +44,17 @@ class SatelliteSignalObservation:
     doppler_: float  # in Hz
     snr: float  # in dB-Hz
 
+    def __call__(self, *args, **kwds):
+        pass
+
+    def __str__(self):
+        return (
+            f"SatelliteSignalObservation(pseudorange={self.pseudorange:.3f} m, "
+            f"carrier_phase={self.carrier_phase:.3f} cycles, "
+            f"doppler={self.doppler_:.3f} Hz, "
+            f"snr={self.snr:.1f} dB-Hz)"
+        )
+
 
 @dataclass
 class AmbiguityObservation:
@@ -78,6 +89,13 @@ class SatelliteObservation:
         self, band_name: str, signal_obs: SatelliteSignalObservation
     ):
         self.signals[band_name] = signal_obs
+
+    def __str__(self):
+        return (
+            f"SatelliteObservation(prn={self.prn}, "
+            f"signals={list(self.signals.keys())}, "
+            f"ambiguities={list(self.ambiguities.keys())})"
+        )
 
 
 @dataclass
