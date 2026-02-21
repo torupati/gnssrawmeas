@@ -176,7 +176,7 @@ $$
 Since the narrow-lane code noise ($\sigma_{\Rho,NL}^2$) is significantly larger than the widelane phase noise ($\sigma_{L,WL}^2$) (by factors of ~24-33 times), the noise in the widelane ambiguity measurement is dominated by the code narrow-lane component:
 
 $$
-\sigma_{N_{WL}}^2 \approx \sigma_{\Rho,NL}^2 = \sigma_L^2 \frac{f_1^2 + f_2^2}{(f_1-f_2)^2}
+\sigma_{N_{WL}}^2 \approx \sigma_{\Rho,NL}^2 = \frac{f_1^2 + f_2^2}{(f_1-f_2)^2} \sigma_\mathrm{\Rho}^2
 $$
 
 This widelane ambiguity can be resolved using integer least-squares methods. Once the widelane ambiguity is fixed, it significantly reduces the search space for resolving the full ambiguity vector, making it a critical step in precise point positioning and baseline determination.
