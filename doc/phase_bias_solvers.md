@@ -7,21 +7,22 @@
 The carrier-phase range observations at two frequencies can be expressed as:
 
 $$
-L_1 = c(T_r-t^s) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}
+L_1 = c(t_r-t^s) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}
 $$
 
 $$
-L_2 = c(T_r-t^s) + T - I_2 + \lambda_2 N_2 + \epsilon_{L,2}
+L_2 = c(t_r-t^s) + T - I_2 + \lambda_2 N_2 + \epsilon_{L,2}
 $$
 
 Where:
 - $\Phi_1, \Phi_2$: phase observations at frequency 1 and 2 (in cycles)
-- $\rho$: geometric distance between receiver and satellite
-- $c$: speed of light
-- $t^s, T_r$: receiver and satellite clock with errors
+- $L_1$, $L_2$: Phase range (meters)
+- $\rho$: geometric distance between receiver and satellite (meter)
+- $c$: speed of light (meter/second)
+- $t^s, t_r$: receiver and satellite clock with clock error for each
 - $T$: tropospheric delay
-- $I_1, I_2$: ionospheric delays at frequency 1 and 2 (proportional to $f^{-2}$)
-- $N_1, N_2$: integer ambiguities
+- $I_1, I_2$: ionospheric delays at frequency 1 and 2 (proportional to $f^{-2}$) in meter
+- $N_1, N_2$: integer ambiguities (cycles)
 - $\epsilon_{\Phi1}, \epsilon_{\Phi2}$: measurement noise
 
 ### Phase Widelane Combination
@@ -83,10 +84,9 @@ L1+L2 | 0.5078
 L1+L5 | 0.5104
 
 
-### Code Narrow Range
+### Code Range Narrow Lane
 
 Code range observation equations are
-
 
 $$
 \Rho_1 = c(t_r-t^s) + T + I_1 + \epsilon_{\Rho,1}
@@ -99,8 +99,51 @@ $$
 In the same manner of phase widelane linear combination, narrow lane linear combination of code range can be defined as
 
 $$
-\frac{f_1}{f_1+f_2} \Rho_1 - \frac{f_2}{f_1+f_2} \Rho_2 = c(T_r-t^s) + T + \frac{f_1}{f_1+f_2} I_1 - \frac{f_2}{f_1+f_2} I_2 + + \epsilon_{\Rho,NL}
+\frac{f_1}{f_1-f_2} \Rho_1 - \frac{f_2}{f_1-f_2} \Rho_2 = c(t_r-t^s) + T + \frac{f_1}{f_1-f_2} I_1 - \frac{f_2}{f_1-f_2} I_2 + \epsilon_{\Rho,NL}
 $$
+
+and
+
+$$
+\frac{1}{\lambda_1} - \frac{1}{\lambda_2} = \frac{1}{\lambda_{NL}}
+$$
+
+or
+
+$$
+f_{NL} = f_1 - f_2
+$$
+
+
+The narrow-lane combination uses the frequency difference to produce a shorter wavelength, which provides improved precision for fixing the widelane ambiguity.
+
+band | $f_1$ (MHz) |  $f_2$ (MHz) | $f_{NL}$ (MHz) | $\lambda_1$ (cm)  | $\lambda_2$ (cm)  | $\lambda_{NL}$ (cm) |
+:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+L1-L2 | 1575.42 | 1227.60 | 2803.02 | 19.03 | 24.42 | 10.70 |
+L1-L5 | 1575.42 | 1176.45 | 2751.87 | 19.03 | 25.48 | 10.90 |
+
+
+Noise terms is
+
+$$
+\epsilon_{\Rho,NL} = \frac{f_1}{f_1-f_2} \epsilon_{\Rho,1}  - \frac{f_2}{f_1-f_2} \epsilon_{\Rho,2}
+$$
+
+If we set equal variance of the $\epsilon_{\Rho,1}=\epsilon_{\Rho,2} = \epsilon_\Rho$, the code narrow lane noise variance would be
+
+$$
+\sigma_{\Rho,NL}^2 = \left(\frac{f_1}{f_1-f_2}\right)^2 \sigma_\Rho^2 + \left(\frac{f_2}{f_1-f_2}\right)^2 \sigma_\Rho^2 =  \frac{f_1^2 + f_2^2}{(f_1-f_2)^2} \sigma_\Rho^2
+$$
+
+Note the scale factor $\frac{f_1^2 + f_2^2}{(f_1-f_2)^2}$ is much larger than 1, meaning noise is significantly amplified in the narrow-lane combination. This noise amplification is a trade-off for achieving shorter wavelength and improved precision.
+
+band | scale factor
+:---:|:---:
+L1-L2 | 32.96
+L1-L5 | 24.27
+
+## Ambiguity of Widelane
+
 
 
 The widelane ambiguity can be recovered separately and resolved with improved success rates due to its longer wavelength and reduced ionospheric effects.
