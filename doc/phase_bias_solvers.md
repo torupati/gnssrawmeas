@@ -1,0 +1,106 @@
+# How to Estimate Phase Bias
+
+## Widelane Ambiguity
+
+### Carrier-Phase Observation Equations
+
+The carrier-phase range observations at two frequencies can be expressed as:
+
+$$
+L_1 = c(T_r-t^s) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}
+$$
+
+$$
+L_2 = c(T_r-t^s) + T - I_2 + \lambda_2 N_2 + \epsilon_{L,2}
+$$
+
+Where:
+- $\Phi_1, \Phi_2$: phase observations at frequency 1 and 2 (in cycles)
+- $\rho$: geometric distance between receiver and satellite
+- $c$: speed of light
+- $t^s, T_r$: receiver and satellite clock with errors
+- $T$: tropospheric delay
+- $I_1, I_2$: ionospheric delays at frequency 1 and 2 (proportional to $f^{-2}$)
+- $N_1, N_2$: integer ambiguities
+- $\epsilon_{\Phi1}, \epsilon_{\Phi2}$: measurement noise
+
+### Phase Widelane Combination
+
+Taking sum of the tow phase observations
+
+$$
+\Phi_1 + \Phi_2 = \left(\frac{1}{\lambda_1} + \frac{1}{\lambda_2}\right) \left(c(T_r - t^s) + T\right) - \frac{I_1}{\lambda_1} - \frac{I_2}{\lambda_2} + N_1 + N_2 + \epsilon_{L,1} +  + \epsilon_{L,2}
+$$
+
+We can thnik new frequency or wavelength for this combined measurement.
+
+$$
+\frac{1}{\lambda_1} + \frac{1}{\lambda_2} = \frac{1}{\lambda_{WL}}
+$$
+
+or if we remind $\lambda = \frac{c}{f}$,
+
+$$
+\frac{1}{\lambda_1} + \frac{1}{\lambda_2} = \frac{f_1}{c} + \frac{f_2}{c} = \frac{f_{WL}}{c}
+$$
+
+The following table presents GPS frequency and wavelength parameters for common widelane combinations. Note that the widelane wavelength is significantly longer than the individual carrier wavelengths, which facilitates ambiguity resolution by reducing the search space.
+
+band | $f_1$ (MHz) |  $f_2$ (MHz) | $f_{WL}$ (MHz) | $\lambda_1$ (cm)  | $\lambda_2$ (cm)  | $\lambda_{WL}$ (cm) |
+:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+L1+L2 | 1575.42 | 1227.60 | 347.82  | 19.03 | 24.42 | 86.22 |
+L1+L5 | 1575.42 | 1176.45 | 398.97 | 19.03 | 25.48 | 75.18 |
+
+Using phase length $L_1$ and frequency $f_1$ instead of phase $\Phi_1$ and wave length $\lambda_1$, we can write
+
+$$
+\lambda_{WL} (\Phi_1 + \Phi_2) = \frac{f_1}{f_1+f_2} L_1 + \frac{f_2}{f_1+f_2} L _ 2
+$$
+
+Substituting the observation equations,
+
+$$
+\frac{f_1}{f_1+f_2} L_1 + \frac{f_2}{f_1+f_2} L _ 2 = c(T_r-t^s) + T - \frac{f_1}{f_1+f_2} I_1  - \frac{f_2}{f_1+f_2} I_2 + \lambda_{WL} (N_1 + N_2) + \epsilon_{L,WL}
+$$
+
+and the noise is
+
+$$
+\epsilon_{L,WL} = \frac{f_1}{f_1+f_2} \epsilon_{L,1} + \frac{f_2}{f_1+f_2} \epsilon_{L,2}
+$$
+
+If we set equal variance of the $\epsilon_{L,1}=\epsilon_{L,2} = \epsilon_L$, the phase wide lane noise varaince would be
+
+$$
+\sigma_{L,WL}^2 = \left(\frac{f_1}{f_1+f_2}\right)^2 \sigma_L^2 + \left(\frac{f_2}{f_1+f_2}\right)^2 \sigma_L^2 = \sigma_L^2 \frac{f_1^2 + f_2^2}{(f_1+f_2)^2}
+$$
+
+Note the scale factor $\frac{f_1^2 + f_2^2}{(f_1+f_2)^2}$ is less than 1.
+
+band | scale factor
+:---:|:---:
+L1+L2 | 0.5078
+L1+L5 | 0.5104
+
+
+### Code Narrow Range
+
+Code range observation equations are
+
+
+$$
+\Rho_1 = c(t_r-t^s) + T + I_1 + \epsilon_{\Rho,1}
+$$
+
+$$
+\Rho_2 = c(t_r-t^s) + T + I_2 + \epsilon_{\Rho,1}
+$$
+
+In the same manner of phase widelane linear combination, narrow lane linear combination of code range can be defined as
+
+$$
+\frac{f_1}{f_1+f_2} \Rho_1 - \frac{f_2}{f_1+f_2} \Rho_2 = c(T_r-t^s) + T + \frac{f_1}{f_1+f_2} I_1 - \frac{f_2}{f_1+f_2} I_2 + + \epsilon_{\Rho,NL}
+$$
+
+
+The widelane ambiguity can be recovered separately and resolved with improved success rates due to its longer wavelength and reduced ionospheric effects.
