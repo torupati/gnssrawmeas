@@ -7,11 +7,10 @@
 The carrier-phase range observations at two frequencies can be expressed as:
 
 $$
-L_1 = c(t_r-t^s) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}
-$$
-
-$$
+\begin{align}
+L_1 = c(t_r-t^s) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}\\
 L_2 = c(t_r-t^s) + T - I_2 + \lambda_2 N_2 + \epsilon_{L,2}
+\end{align}
 $$
 
 Where:
@@ -61,10 +60,12 @@ $$
 Substituting the observation equations,
 
 $$
+\begin{align}
 \frac{f_1}{f_1+f_2} L_1 + \frac{f_2}{f_1+f_2} L _ 2 = c(T_r-t^s) + T - \frac{f_1}{f_1+f_2} I_1  - \frac{f_2}{f_1+f_2} I_2 + \lambda_{WL} (N_1 + N_2) + \epsilon_{L,WL}
+\end{align}
 $$
 
-and the noise is
+Its noise is
 
 $$
 \epsilon_{L,WL} = \frac{f_1}{f_1+f_2} \epsilon_{L,1} + \frac{f_2}{f_1+f_2} \epsilon_{L,2}
@@ -132,7 +133,7 @@ $$
 If we set equal variance of the $\epsilon_{\Rho,1}=\epsilon_{\Rho,2} = \epsilon_\Rho$, the code narrow lane noise variance would be
 
 $$
-\sigma_{\Rho,NL}^2 = \left(\frac{f_1}{f_1-f_2}\right)^2 \sigma_\Rho^2 + \left(\frac{f_2}{f_1-f_2}\right)^2 \sigma_\Rho^2 =  \frac{f_1^2 + f_2^2}{(f_1-f_2)^2} \sigma_\Rho^2
+\sigma_{\mathrm{\Rho},NL}^2 = \left(\frac{f_1}{f_1-f_2}\right)^2 \sigma_\Rho^2 + \left(\frac{f_2}{f_1-f_2}\right)^2 \sigma_\Rho^2 =  \frac{f_1^2 + f_2^2}{(f_1-f_2)^2} \cdot \sigma_{\mathrm{\Rho}}^2
 $$
 
 Note the scale factor $\frac{f_1^2 + f_2^2}{(f_1-f_2)^2}$ is much larger than 1, meaning noise is significantly amplified in the narrow-lane combination. This noise amplification is a trade-off for achieving shorter wavelength and improved precision.
@@ -144,6 +145,44 @@ L1-L5 | 24.27
 
 ## Ambiguity of Widelane
 
+The widelane ambiguity can be isolated through the differencing of phase widelane and code narrow-lane measurements:
 
+$$
+\left(\frac{f_1}{f_1+f_2} L_1 + \frac{f_2}{f_1+f_2} L_2 \right) - \left(\frac{f_1}{f_1-f_2} \Rho_1 - \frac{f_2}{f_1-f_2} \Rho_2 \right) \approx \lambda_{WL} (N_1+N_2) + \epsilon_{L,WL} - \epsilon_{\Rho,NL}
+$$
+
+First, this approximation is abount from ionospheric delay modeling proportional to TEC(Total Electron Content) and the second order inversely frequency, $I\propto \frac{\mathrm{TEC}}{f^2}$. The ionospheric term is completely canceled in within this modeling. Ionosphere term in phase widelane is
+
+$$
+-\frac{f_1}{f_1+f_2} I_1 - \frac{f_2}{f_1+f_2} I_2 \approx -\frac{f_1}{f_1+f_2} \frac{TEC}{f_1^2} - \frac{f_2}{f_1+f_2} \frac{TEC}{f_2^2} = -\frac{TEC}{f_1 f_2}
+$$
+
+while the code narrow lane ionospheric term is
+
+$$
+\frac{f_1}{f_1-f_2} I_1 - \frac{f_2}{f_1-f_2} I_2 = \frac{f_1}{f_1-f_2} \frac{TEC}{f_1^2} - \frac{f_2}{f_1-f_2} \frac{TEC}{f_2^2} = -\frac{TEC}{f_1 f_2}
+$$
+
+Remarkably, both combinations yield the same ionospheric term $-\frac{TEC}{f_1 f_2}$, which demonstrates the ionosphere-free property of this widelane-narrow-lane differencing approach.
+
+
+
+Secondary, this linear combination removes common errors (geometric range, clock, troposphere) while isolating the widelane integer ambiguity. The measurement noise in this combination is:
+
+$$
+\epsilon_{L,WL} - \epsilon_{\Rho,NL}
+$$
+
+Since the narrow-lane code noise ($\sigma_{\Rho,NL}^2$) is significantly larger than the widelane phase noise ($\sigma_{L,WL}^2$) (by factors of ~24-33 times), the noise in the widelane ambiguity measurement is dominated by the code narrow-lane component:
+
+$$
+\sigma_{N_{WL}}^2 \approx \sigma_{\Rho,NL}^2 = \sigma_L^2 \frac{f_1^2 + f_2^2}{(f_1-f_2)^2}
+$$
+
+This widelane ambiguity can be resolved using integer least-squares methods. Once the widelane ambiguity is fixed, it significantly reduces the search space for resolving the full ambiguity vector, making it a critical step in precise point positioning and baseline determination.
 
 The widelane ambiguity can be recovered separately and resolved with improved success rates due to its longer wavelength and reduced ionospheric effects.
+
+## Data Example
+
+here...
