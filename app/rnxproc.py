@@ -82,6 +82,11 @@ def main():
         ),
     )
     parser.add_argument(
+        "--show-statistics-figures",
+        action="store_true",
+        help="Show ambiguity statistics figures (widelane, ionofree, geofree, multipath)",
+    )
+    parser.add_argument(
         "--skip-plot",
         action="store_true",
         help="Skip generating plots",
@@ -207,7 +212,12 @@ def main():
             args.plot_mode if isinstance(args.plot_mode, list) else [args.plot_mode]
         )
         for mode in plot_modes:
-            plot_satellite_observations(epochs, output_dir, plot_mode=mode)
+            plot_satellite_observations(
+                epochs,
+                output_dir,
+                plot_mode=mode,
+                show_ambiguity_statistics=args.show_statistics_figures,
+            )
 
     logger.info("Done!")
     return 0

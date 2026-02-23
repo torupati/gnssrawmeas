@@ -185,4 +185,8 @@ The widelane ambiguity can be recovered separately and resolved with improved su
 
 ## Data Example
 
-here...
+Here we present a computational example. This figure shows the widelane ambiguity for Galileo satellite signals obtained from 2 GNSS receiver, a u-blox F9P receiver and NovAtel OEM7 from the same antenna, plotted using the equations described above. It can be seen that the widelane ambiguity remains constant throughout the observation period.
+
+![E23 Observations](./figures/2026_f9p_E23_observations6.png)
+
+![E23 Observations](./figures/2026_oem_E23_observations6.png)
