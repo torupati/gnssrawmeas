@@ -5,12 +5,50 @@ import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+_GOODSTYLE_RC = {
+    "figure.facecolor": "#ffffff",
+    "axes.facecolor": "#fbfbfc",
+    "axes.edgecolor": "#d1d5db",
+    "axes.labelcolor": "#111827",
+    "axes.grid": True,
+    "grid.color": "#e5e7eb",
+    "grid.linewidth": 0.6,
+    "xtick.color": "#374151",
+    "ytick.color": "#374151",
+    "text.color": "#111827",
+    "legend.frameon": False,
+    "legend.fontsize": "small",
+}
+
+
+def _apply_goodstyle(fig, axes):
+    """Apply a light-and-minimal style to *fig* and all *axes* in-place."""
+    fig.patch.set_facecolor(_GOODSTYLE_RC["figure.facecolor"])
+    colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
+    for ax in axes:
+        ax.set_facecolor(_GOODSTYLE_RC["axes.facecolor"])
+        for spine in ("top", "right"):
+            ax.spines[spine].set_visible(False)
+        for spine in ("left", "bottom"):
+            ax.spines[spine].set_edgecolor(_GOODSTYLE_RC["axes.edgecolor"])
+        ax.tick_params(colors=_GOODSTYLE_RC["xtick.color"])
+        ax.yaxis.label.set_color(_GOODSTYLE_RC["axes.labelcolor"])
+        ax.xaxis.label.set_color(_GOODSTYLE_RC["axes.labelcolor"])
+        ax.grid(True, color=_GOODSTYLE_RC["grid.color"], linewidth=_GOODSTYLE_RC["grid.linewidth"])
+        legend = ax.get_legend()
+        if legend is not None:
+            legend.set_frame_on(False)
+        # Re-colour existing lines/scatter with tab10
+        for idx, line in enumerate(ax.get_lines()):
+            line.set_color(colors[idx % len(colors)])
+
 
 def plot_satellite_observations(
     epochs,
     output_dir: Path,
     plot_mode: int = 1,
     show_ambiguity_statistics: bool = False,
+    goodstyle: bool = False,
 ):
     """
     Plot observations for each satellite.
@@ -20,6 +58,7 @@ def plot_satellite_observations(
         output_dir: Directory to save plots
         plot_mode: Mode of plotting
         show_ambiguity_statistics: Whether to show ambiguity statistics (widelane, ionofree, geofree, multipath)
+        goodstyle: Apply a light-and-minimal style to the plot (white/light-grey bg, subtle grid, hidden top/right spines)
     """
     # Organize data by satellite
     satellite_data: dict[str, dict] = {}
@@ -387,7 +426,10 @@ def plot_satellite_observations(
             # Rotate x-axis labels for better readability
             plt.setp(axes[-1].xaxis.get_majorticklabels(), rotation=45, ha="right")
 
-        plt.tight_layout()
+        if goodstyle:
+            _apply_goodstyle(fig, axes)
+
+        plt.tight_layout(rect=(0, 0, 1, 0.97) if goodstyle else (0, 0, 1, 1))
 
         if common_start is not None and common_end is not None:
             for ax in axes:
