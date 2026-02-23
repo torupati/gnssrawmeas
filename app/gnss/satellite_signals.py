@@ -69,6 +69,7 @@ class AmbiguityObservation:
     widelane: float  # in cycle
     ionofree: float  # in cycle
     geofree: float = 0.0  # in cycle (optional, default to 0.0)
+    multipath: float = 0.0  # in meters (optional, default to 0.0)
 
 
 @dataclass
@@ -215,7 +216,14 @@ def compute_dual_frequency_ambiguity(
         amb_wl
     ) / (wlen1 - wlen2)
 
-    return AmbiguityObservation(widelane=amb_wl, ionofree=amb_iono, geofree=amb_geofree)
+    # Compute multipath estimate (meters) using geometry-free combination
+    mp_estimate = (pr_f1 - wlen1 * cp_f1) + wlen1**2 * (
+        wlen2 * cp_f2 - wlen1 * cp_f1
+    ) / (wlen2**2 - wlen1**2)
+
+    return AmbiguityObservation(
+        widelane=amb_wl, ionofree=amb_iono, geofree=amb_geofree, multipath=mp_estimate
+    )
 
 
 def compute_ambiguities_for_satellite(

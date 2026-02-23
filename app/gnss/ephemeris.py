@@ -13,10 +13,8 @@ from app.gnss.constants import CLIGHT
 
 # Physical constants
 GM_WGS84 = 3.986005e14  # WGS84 Earth's gravitational constant [m^3/s^2]
-MU_GPS = 3.986005e14  # GPS Earth's gravitational constant [m^3/s^2]
 OMEGA_E = 7.2921151467e-5  # Earth's rotation rate [rad/s]
-F = -4.442807633e-10  # Relativistic correction factor
-F_REL = -4.442807633e-10
+F_REL = -4.442807633e-10  # Relativistic correction factor
 
 # GPS time reference epoch (start of GPS time)
 GPS_EPOCH = datetime(1980, 1, 6, 0, 0, 0)
@@ -345,7 +343,7 @@ def broadcast_ecef_and_clock(
 ) -> tuple[np.ndarray, float]:
     tk = _wrap_time_diff(sow - nav.toe)
     A = nav.sqrtA**2
-    n0 = np.sqrt(MU_GPS / A**3)
+    n0 = np.sqrt(GM_WGS84 / A**3)
     n = n0 + nav.delta_n
     M = nav.M0 + n * tk
 
@@ -500,6 +498,6 @@ def compute_satellite_position(
     dtr = eph.af0 + eph.af1 * dt_toc + eph.af2 * dt_toc**2
 
     # Relativistic correction
-    dtr += F * eph.e * eph.sqrtA * np.sin(E)
+    dtr += F_REL * eph.e * eph.sqrtA * np.sin(E)
 
     return np.array([x, y, z]), dtr
