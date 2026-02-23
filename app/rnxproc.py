@@ -17,6 +17,30 @@ from app.gnss.plot.observables import plot_satellite_observations
 logger = getLogger(__name__)
 
 
+def parse_plot_modes(mode_str):
+    """Parse plot modes from comma-separated string.
+
+    Args:
+        mode_str: Comma-separated plot modes (e.g., '1' or '1,2,3')
+
+    Returns:
+        Single int if one mode, list of ints if multiple modes
+    """
+    modes = []
+    for part in mode_str.split(","):
+        try:
+            mode = int(part.strip())
+        except ValueError:
+            raise argparse.ArgumentTypeError(f"Invalid plot mode: {part.strip()}")
+        if mode not in [1, 2, 3, 4, 5, 6]:
+            raise argparse.ArgumentTypeError(
+                f"Invalid plot mode: {mode}. Must be 1, 2, 3, 4, 5, or 6"
+            )
+        modes.append(mode)
+    # Return single int if only one mode, otherwise return list
+    return modes[0] if len(modes) == 1 else modes
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Process RINEX observation files and generate plots"
@@ -47,12 +71,14 @@ def main():
     )
     parser.add_argument(
         "--plot-mode",
-        type=int,
-        choices=[1, 2, 3, 4],
+        type=parse_plot_modes,
         default=1,
         help=(
-            "Plot data selection: 1=all, 2=SNR+widelane only, "
-            "3=SNR+widelane+ionofree only, 4=PR+CP+Doppler+SNR only"
+            "Plot data selection (can be comma-separated): 1=all, 2=SNR+widelane only, "
+            "3=SNR+widelane+ionofree only, 4=PR+CP+Doppler+SNR only, "
+            "5=Doppler+SNR+widelane+multipath only, "
+            "6=Doppler+SNR+widelane only (no multipath). "
+            "Example: --plot-mode 1 or --plot-mode 1,2,3"
         ),
     )
     parser.add_argument(
@@ -176,7 +202,12 @@ def main():
         logger.info("Skipping plot generation (--skip-plot)")
     else:
         logger.info("Generating plots...")
-        plot_satellite_observations(epochs, output_dir, plot_mode=args.plot_mode)
+        # Handle both single mode and multiple modes
+        plot_modes = (
+            args.plot_mode if isinstance(args.plot_mode, list) else [args.plot_mode]
+        )
+        for mode in plot_modes:
+            plot_satellite_observations(epochs, output_dir, plot_mode=mode)
 
     logger.info("Done!")
     return 0

@@ -6,13 +6,20 @@ import matplotlib.pyplot as plt
 logger = logging.getLogger(__name__)
 
 
-def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
+def plot_satellite_observations(
+    epochs,
+    output_dir: Path,
+    plot_mode: int = 1,
+    show_ambiguity_statistics: bool = False,
+):
     """
     Plot observations for each satellite.
 
     Args:
         epochs: List of EpochObservations
         output_dir: Directory to save plots
+        plot_mode: Mode of plotting
+        show_ambiguity_statistics: Whether to show ambiguity statistics (widelane, ionofree, geofree, multipath)
     """
     # Organize data by satellite
     satellite_data: dict[str, dict] = {}
@@ -86,6 +93,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                             "widelane": {"times": [], "values": []},
                             "ionofree": {"times": [], "values": []},
                             "geofree": {"times": [], "values": []},
+                            "multipath": {"times": [], "values": []},
                         }
                     satellite_data[sat_id]["ambiguities"][comb_name]["widelane"][
                         "times"
@@ -105,6 +113,12 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                     satellite_data[sat_id]["ambiguities"][comb_name]["geofree"][
                         "values"
                     ].append(amb_obs.geofree)
+                    satellite_data[sat_id]["ambiguities"][comb_name]["multipath"][
+                        "times"
+                    ].append(epoch.datetime)
+                    satellite_data[sat_id]["ambiguities"][comb_name]["multipath"][
+                        "values"
+                    ].append(amb_obs.multipath)
 
     # Create plots for each satellite
     for sat_id, data in satellite_data.items():
@@ -124,6 +138,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
             all_times.extend(comb_data["widelane"]["times"])
             all_times.extend(comb_data["ionofree"]["times"])
             all_times.extend(comb_data["geofree"]["times"])
+            all_times.extend(comb_data["multipath"]["times"])
         if all_times:
             common_start = min(all_times)
             common_end = max(all_times)
@@ -135,18 +150,25 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
         num_ambiguity_combos = len(data["ambiguities"])
         has_ambiguity = num_ambiguity_combos > 0
 
-        show_basic = plot_mode in {1, 4}
-        show_snr = plot_mode in {1, 2, 3, 4}
-        show_widelane = plot_mode in {1, 2, 3}
+        # Determine which plots to show based on plot_mode
+        show_pseudorange = plot_mode in {1, 4}
+        show_carrier_phase = plot_mode in {1, 4}
+        show_doppler = plot_mode in {1, 4, 5, 6}
+        show_snr = plot_mode in {1, 2, 3, 4, 5, 6}
+        # For ambiguity-related plots, we will determine which ones to show based on the mode
+        show_widelane = plot_mode in {1, 2, 3, 5, 6}
         show_ionofree = plot_mode in {1, 3}
         show_geofree = plot_mode in {1, 3}
-        if plot_mode == 4:
-            has_ambiguity = False
+        show_multipath = plot_mode in {1, 3, 5}
 
         # Create a figure with variable subplots
         num_rows = 0
-        if show_basic:
-            num_rows += 3  # pseudorange, carrier phase, doppler
+        if show_pseudorange:
+            num_rows += 1  # pseudorange
+        if show_carrier_phase:
+            num_rows += 1
+        if show_doppler:
+            num_rows += 1  # doppler only
         if show_snr:
             num_rows += 1
         if has_ambiguity:
@@ -156,6 +178,8 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                 num_rows += num_ambiguity_combos
             if show_geofree:
                 num_rows += num_ambiguity_combos
+            if show_multipath:
+                num_rows += num_ambiguity_combos  # multipath per combination
 
         fig, axes = plt.subplots(num_rows, 1, figsize=(10, 3 * num_rows), squeeze=False)
         fig.suptitle(f"Satellite {sat_id} Observations", fontsize=16)
@@ -166,7 +190,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
         plot_idx = 0
 
         # Plot pseudorange
-        if show_basic:
+        if show_pseudorange:
             for band_name, band_data in data["pseudorange"].items():
                 if band_data["values"]:
                     axes[plot_idx].plot(
@@ -181,6 +205,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
             axes[plot_idx].grid(True)
             plot_idx += 1
 
+        if show_carrier_phase:
             # Plot carrier phase
             for band_name, band_data in data["carrier_phase"].items():
                 if band_data["values"]:
@@ -195,7 +220,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
             axes[plot_idx].legend()
             axes[plot_idx].grid(True)
             plot_idx += 1
-
+        if show_doppler:
             # Plot doppler
             for band_name, band_data in data["doppler"].items():
                 if band_data["values"]:
@@ -249,6 +274,19 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                             label=f"{comb_name} WL",
                             color=color_wl,
                         )
+                        # Set ylim if range is less than 1
+                        if max(wl_values) - min(wl_values) < 1:
+                            mean_val = sum(wl_values) / len(wl_values)
+                            axes[plot_idx].set_ylim(mean_val - 3, mean_val + 3)
+                        if show_ambiguity_statistics:
+                            mean_wl = sum(wl_values) / len(wl_values)
+                            std_wl = (
+                                sum((x - mean_wl) ** 2 for x in wl_values)
+                                / len(wl_values)
+                            ) ** 0.5
+                            axes[plot_idx].set_title(
+                                f"{comb_name} Widelane Ambiguity (mean={mean_wl:.2f}, std={std_wl:.2f}, max-min={max(wl_values) - min(wl_values):.2f} cycles)"
+                            )
                     axes[plot_idx].set_ylabel(f"Widelane {comb_name} (cycles)")
                     axes[plot_idx].legend()
                     axes[plot_idx].grid(True)
@@ -267,7 +305,19 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                             label=f"{comb_name} IF",
                             color=color_if,
                         )
-                    axes[plot_idx].set_ylabel(f"Ionofree {comb_name} (cycles)")
+                        # Set ylim if range is less than 1
+                        if max(if_values) - min(if_values) < 1:
+                            mean_val = sum(if_values) / len(if_values)
+                            axes[plot_idx].set_ylim(mean_val - 3, mean_val + 3)
+                        if show_ambiguity_statistics:
+                            mean_if = sum(if_values) / len(if_values)
+                            std_if = (
+                                sum((x - mean_if) ** 2 for x in if_values)
+                                / len(if_values)
+                            ) ** 0.5
+                            axes[plot_idx].set_title(
+                                f"{comb_name} Ionofree Ambiguity (mean={mean_if:.2f}, std={std_if:.2f}, max-min={max(if_values) - min(if_values):.2f} cycles)"
+                            )
                     axes[plot_idx].legend()
                     axes[plot_idx].grid(True)
                     plot_idx += 1
@@ -284,7 +334,49 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
                             label=f"{comb_name} GF",
                             color=color_if,
                         )
+                        # Set ylim if range is less than 1
+                        if max(gf_values) - min(gf_values) < 1:
+                            mean_val = sum(gf_values) / len(gf_values)
+                            axes[plot_idx].set_ylim(mean_val - 2, mean_val + 2)
+                        if show_ambiguity_statistics:
+                            mean_gf = sum(gf_values) / len(gf_values)
+                            std_gf = (
+                                sum((x - mean_gf) ** 2 for x in gf_values)
+                                / len(gf_values)
+                            ) ** 0.5
+                            axes[plot_idx].set_title(
+                                f"{comb_name} Geofree Ambiguity (mean={mean_gf:.2f}, std={std_gf:.2f}, max-min={max(gf_values) - min(gf_values):.2f} cycles)"
+                            )
                     axes[plot_idx].set_ylabel(f"Geofree {comb_name} (cycles)")
+                    axes[plot_idx].legend()
+                    axes[plot_idx].grid(True)
+                    plot_idx += 1
+                # Plot multipath
+                elif show_multipath:
+                    mp_times = comb_data["multipath"]["times"]
+                    mp_values = comb_data["multipath"]["values"]
+                    if mp_values:
+                        axes[plot_idx].plot(
+                            mp_times,
+                            mp_values,
+                            marker=".",
+                            linestyle="None",
+                            label=f"{comb_name} Multipath",
+                            color=color_if,
+                        )
+                        # Set ylim if range is less than 2
+                        if max(mp_values) - min(mp_values) < 2:
+                            mean_val = sum(mp_values) / len(mp_values)
+                            axes[plot_idx].set_ylim(mean_val - 1, mean_val + 1)
+                        if show_ambiguity_statistics:
+                            mean_mp = sum(mp_values) / len(mp_values)
+                            std_mp = (
+                                sum((x - mean_mp) ** 2 for x in mp_values)
+                                / len(mp_values)
+                            ) ** 0.5
+                            axes[plot_idx].set_title(
+                                f"{comb_name} Multipath (mean={mean_mp:.2f}, std={std_mp:.2f}, max-min={max(mp_values) - min(mp_values):.2f})"
+                            )
                     axes[plot_idx].legend()
                     axes[plot_idx].grid(True)
                     plot_idx += 1
@@ -305,7 +397,7 @@ def plot_satellite_observations(epochs, output_dir: Path, plot_mode: int = 1):
             axes[-1].set_xlabel("Time")
 
         # Save the plot
-        output_file = output_dir / f"{sat_id}_observations.png"
+        output_file = output_dir / f"{sat_id}_observations{plot_mode}.png"
         plt.savefig(output_file, dpi=150, bbox_inches="tight")
         plt.close()
 
