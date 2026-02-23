@@ -394,7 +394,7 @@ def plot_satellite_observations(
                 ax.set_xlim(common_start, common_end)
 
         if len(axes) > 0:
-            axes[-1].set_xlabel("Time")
+            axes[-1].set_xlabel("GPS Time")
 
         # Save the plot
         output_file = output_dir / f"{sat_id}_observations{plot_mode}.png"

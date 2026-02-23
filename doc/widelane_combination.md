@@ -189,4 +189,4 @@ Here we present a computational example. This figure shows the widelane ambiguit
 
 ![E23 Observations](./figures/2026_f9p_E23_observations6.png)
 
-![E23 Observations](./figures/2026_oem_E23_observations6.png)
+![E23 Observations](./figures/2026_oem7_E23_observations6.png)
