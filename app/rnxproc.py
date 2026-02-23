@@ -101,6 +101,11 @@ def main():
         ),
     )
     parser.add_argument(
+        "--plot-goodstyle",
+        action="store_true",
+        help="Apply a light × minimal visual style to plots",
+    )
+    parser.add_argument(
         "--carrier-smoothing",
         action="store_true",
         help="Enable carrier phase smoothing of pseudorange",
@@ -217,6 +222,7 @@ def main():
                 output_dir,
                 plot_mode=mode,
                 show_ambiguity_statistics=args.show_statistics_figures,
+                goodstyle=args.plot_goodstyle,
             )
 
     logger.info("Done!")
