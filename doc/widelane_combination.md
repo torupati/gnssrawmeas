@@ -46,12 +46,12 @@ $$
 
 The following table presents GPS frequency and wavelength parameters for common widelane combinations. Note that the widelane wavelength is significantly longer than the individual carrier wavelengths, which facilitates ambiguity resolution by reducing the search space.
 
-band | $f_1$ (MHz) |  $f_2$ (MHz) | $f_{WL}$ (MHz) | $\lambda_1$ (cm)  | $\lambda_2$ (cm)  | $\lambda_{WL}$ (cm) |
-:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-L1+L2 | 1575.42 | 1227.60 | 347.82  | 19.03 | 24.42 | 86.22 |
-L1+L5 | 1575.42 | 1176.45 | 398.97 | 19.03 | 25.48 | 75.18 |
-L1+L7 | 1575.42 | 1207.14 | 2782.56 | 19.03 | 24.83 | 10.76 |
-L1+L8 | 1575.42 | 1191.795 | 2767.215 | 19.03 | 25.16 | 10.84 |
+band | $f_1$ (MHz) |  $f_2$ (MHz) | $\lambda_1$ (cm)  | $\lambda_2$ (cm)  | $\lambda_{WL}$ (cm) |
+:---:|:---:|:---:|:---:|:---:|:---:|
+L1+L2 | 1575.42 | 1227.60 | 19.03 | 24.42 | 86.22 |
+L1+L5 | 1575.42 | 1176.45 | 19.03 | 25.48 | 75.18 |
+L1+L7 | 1575.42 | 1207.14 | 19.03 | 24.83 | 81.47 |
+L1+L8 | 1575.42 | 1191.795 | 19.03 | 25.16 | 78.20 |
 
 Using phase length $L_1$ and frequency $f_1$ instead of phase $\Phi_1$ and wave length $\lambda_1$, we can write
 
@@ -122,12 +122,12 @@ $$
 
 The narrow-lane combination uses the frequency difference to produce a shorter wavelength, which provides improved precision for fixing the widelane ambiguity.
 
-band | $f_1$ (MHz) |  $f_2$ (MHz) | $f_{NL}$ (MHz) | $\lambda_1$ (cm)  | $\lambda_2$ (cm)  | $\lambda_{NL}$ (cm) |
-:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-L1-L2 | 1575.42 | 1227.60 | 2803.02 | 19.03 | 24.42 | 10.70 |
-L1-L5 | 1575.42 | 1176.45 | 2751.87 | 19.03 | 25.48 | 10.90 |
-L1-L7 | 1575.42 | 1207.14 | 2782.56 | 19.03 | 24.83 | 10.76 |
-L1-L8 | 1575.42 | 1191.795 | 2767.215 | 19.03 | 25.16 | 10.84 |
+band | $f_1$ (MHz) |  $f_2$ (MHz) | $\lambda_1$ (cm)  | $\lambda_2$ (cm)  | $\lambda_{NL}$ (cm) |
+:---:|:---:|:---:|:---:|:---:|:---:|
+L1-L2 | 1575.42 | 1227.60 | 19.03 | 24.42 | 10.70 |
+L1-L5 | 1575.42 | 1176.45 | 19.03 | 25.48 | 10.90 |
+L1-L7 | 1575.42 | 1207.14 | 19.03 | 24.83 | 10.78 |
+L1-L8 | 1575.42 | 1191.795 | 19.03 | 25.16 | 10.84 |
 
 
 Noise terms is
