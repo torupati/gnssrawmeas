@@ -7,10 +7,10 @@
 The carrier-phase range observations at two frequencies can be expressed as:
 
 $$
-\begin{align}
-L_1 = c(t_r-t^s) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}\\
-L_2 = c(t_r-t^s) + T - I_2 + \lambda_2 N_2 + \epsilon_{L,2}
-\end{align}
+\begin{aligned}
+L_1 = \rho + c(dt^s-dt_r) + T - I_1 + \lambda_1 N_1 + \epsilon_{L,1}\\
+L_2 = \rho + c(dt^s-dt_r) + T - I_2 + \lambda_2 N_2 + \epsilon_{L,2}
+\end{aligned}
 $$
 
 Where:
@@ -29,7 +29,7 @@ Where:
 Taking sum of the tow phase observations
 
 $$
-\Phi_1 + \Phi_2 = \left(\frac{1}{\lambda_1} + \frac{1}{\lambda_2}\right) \left(c(T_r - t^s) + T\right) - \frac{I_1}{\lambda_1} - \frac{I_2}{\lambda_2} + N_1 + N_2 + \epsilon_{L,1} +  + \epsilon_{L,2}
+\Phi_1 + \Phi_2 = \left(\frac{1}{\lambda_1} + \frac{1}{\lambda_2}\right) \left(\rho + c(dt^s - dt_r) + T\right) - \frac{I_1}{\lambda_1} - \frac{I_2}{\lambda_2} + N_1 + N_2 + \epsilon_{L,1} +  + \epsilon_{L,2}
 $$
 
 We can thnik new frequency or wavelength for this combined measurement.
@@ -50,6 +50,8 @@ band | $f_1$ (MHz) |  $f_2$ (MHz) | $f_{WL}$ (MHz) | $\lambda_1$ (cm)  | $\lambd
 :---:|:---:|:---:|:---:|:---:|:---:|:---:|
 L1+L2 | 1575.42 | 1227.60 | 347.82  | 19.03 | 24.42 | 86.22 |
 L1+L5 | 1575.42 | 1176.45 | 398.97 | 19.03 | 25.48 | 75.18 |
+L1+L7 | 1575.42 | 1207.14 | 2782.56 | 19.03 | 24.83 | 10.76 |
+L1+L8 | 1575.42 | 1191.795 | 2767.215 | 19.03 | 25.16 | 10.84 |
 
 Using phase length $L_1$ and frequency $f_1$ instead of phase $\Phi_1$ and wave length $\lambda_1$, we can write
 
@@ -61,7 +63,7 @@ Substituting the observation equations,
 
 $$
 \begin{align}
-\frac{f_1}{f_1+f_2} L_1 + \frac{f_2}{f_1+f_2} L _ 2 = c(T_r-t^s) + T - \frac{f_1}{f_1+f_2} I_1  - \frac{f_2}{f_1+f_2} I_2 + \lambda_{WL} (N_1 + N_2) + \epsilon_{L,WL}
+\frac{f_1}{f_1+f_2} L_1 + \frac{f_2}{f_1+f_2} L _ 2 = \rho + c(dt^s-dt_r) + T - \frac{f_1}{f_1+f_2} I_1  - \frac{f_2}{f_1+f_2} I_2 + \lambda_{WL} (N_1 + N_2) + \epsilon_{L,WL}
 \end{align}
 $$
 
@@ -83,6 +85,8 @@ band | scale factor
 :---:|:---:
 L1+L2 | 0.5078
 L1+L5 | 0.5104
+L1+L7 | 0.5088
+L1+L8 | 0.5095
 
 
 ### Code Range Narrow Lane
@@ -90,17 +94,17 @@ L1+L5 | 0.5104
 Code range observation equations are
 
 $$
-\Rho_1 = c(t_r-t^s) + T + I_1 + \epsilon_{\Rho,1}
+\Rho_1 = \rho + c(dt^s-dt_r) + T + I_1 + \epsilon_{\Rho,1}
 $$
 
 $$
-\Rho_2 = c(t_r-t^s) + T + I_2 + \epsilon_{\Rho,1}
+\Rho_2 = \rho + c(dt^s-dt_r) + T + I_2 + \epsilon_{\Rho,1}
 $$
 
 In the same manner of phase widelane linear combination, narrow lane linear combination of code range can be defined as
 
 $$
-\frac{f_1}{f_1-f_2} \Rho_1 - \frac{f_2}{f_1-f_2} \Rho_2 = c(t_r-t^s) + T + \frac{f_1}{f_1-f_2} I_1 - \frac{f_2}{f_1-f_2} I_2 + \epsilon_{\Rho,NL}
+\frac{f_1}{f_1-f_2} \Rho_1 - \frac{f_2}{f_1-f_2} \Rho_2 = \rho + c(dt^s-dt_r) + T + \frac{f_1}{f_1-f_2} I_1 - \frac{f_2}{f_1-f_2} I_2 + \epsilon_{\Rho,NL}
 $$
 
 and
@@ -122,6 +126,8 @@ band | $f_1$ (MHz) |  $f_2$ (MHz) | $f_{NL}$ (MHz) | $\lambda_1$ (cm)  | $\lambd
 :---:|:---:|:---:|:---:|:---:|:---:|:---:|
 L1-L2 | 1575.42 | 1227.60 | 2803.02 | 19.03 | 24.42 | 10.70 |
 L1-L5 | 1575.42 | 1176.45 | 2751.87 | 19.03 | 25.48 | 10.90 |
+L1-L7 | 1575.42 | 1207.14 | 2782.56 | 19.03 | 24.83 | 10.76 |
+L1-L8 | 1575.42 | 1191.795 | 2767.215 | 19.03 | 25.16 | 10.84 |
 
 
 Noise terms is
@@ -142,6 +148,8 @@ band | scale factor
 :---:|:---:
 L1-L2 | 32.96
 L1-L5 | 24.27
+L1-L7 | 29.05
+L1-L8 | 26.52
 
 ## Ambiguity of Widelane
 
