@@ -79,14 +79,14 @@ $$
 \sigma_{L,WL}^2 = \left(\frac{f_1}{f_1-f_2}\right)^2 \sigma_L^2 + \left(\frac{f_2}{f_1-f_2}\right)^2 \sigma_L^2 = \sigma_L^2 \frac{f_1^2 + f_2^2}{(f_1-f_2)^2}
 $$
 
-Note the scale factor $\frac{f_1^2 + f_2^2}{(f_1-f_2)^2}$ is much larger than 1.
+Note the scale factor $\sqrt{\frac{f_1^2 + f_2^2}{(f_1-f_2)^2}}$ is much larger than 1.
 
 band | scale factor
 :---:|:---:
-L1-L2 | 32.96
-L1-L5 | 24.27
-L1-L7 | 29.05
-L1-L8 | 26.52
+L1-L2 | 5.74
+L1-L5 | 4.93
+L1-L7 | 5.39
+L1-L8 | 5.15
 
 
 ### Code Range Narrow Lane
@@ -141,14 +141,14 @@ $$
 \sigma_{\mathrm{\Rho},NL}^2 = \left(\frac{f_1}{f_1+f_2}\right)^2 \sigma_\Rho^2 + \left(\frac{f_2}{f_1+f_2}\right)^2 \sigma_\Rho^2 =  \frac{f_1^2 + f_2^2}{(f_1+f_2)^2} \cdot \sigma_{\mathrm{\Rho}}^2
 $$
 
-Note the scale factor $\frac{f_1^2 + f_2^2}{(f_1+f_2)^2}$ is less than 1.
+Note the scale factor $\sqrt{\frac{f_1^2 + f_2^2}{(f_1+f_2)^2}}$ is less than 1.
 
 band | scale factor
 :---:|:---:
-L1+L2 | 0.5078
-L1+L5 | 0.5104
-L1+L7 | 0.5088
-L1+L8 | 0.5095
+L1+L2 | 0.713
+L1+L5 | 0.714
+L1+L7 | 0.713
+L1+L8 | 0.714
 
 ## Ambiguity of Widelane
 
@@ -180,7 +180,7 @@ $$
 \epsilon_{L,WL} - \epsilon_{\Rho,NL}
 $$
 
-Since the narrow-lane code noise ($\sigma_{\Rho,NL}^2$) is significantly larger than the widelane phase noise ($\sigma_{L,WL}^2$) (by factors of ~24-33 times), the noise in the widelane ambiguity measurement is dominated by the code narrow-lane component:
+Since the narrow-lane code noise ($\sigma_{\Rho,NL}^2$) is significantly larger than the widelane phase noise ($\sigma_{L,WL}^2$), the noise in the widelane ambiguity measurement is dominated by the code narrow-lane component:
 
 $$
 \sigma_{N_{WL}}^2 \approx \sigma_{\Rho,NL}^2 = \frac{f_1^2 + f_2^2}{(f_1-f_2)^2} \sigma_\mathrm{\Rho}^2
