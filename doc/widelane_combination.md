@@ -161,13 +161,13 @@ $$
 First, this approximation is abount from ionospheric delay modeling proportional to TEC(Total Electron Content) and the second order inversely frequency, $I\propto \frac{\mathrm{TEC}}{f^2}$. The ionospheric term is completely canceled in within this modeling. Ionosphere term in phase widelane is
 
 $$
--\frac{f_1}{f_1+f_2} I_1 - \frac{f_2}{f_1+f_2} I_2 \approx -\frac{f_1}{f_1+f_2} \frac{TEC}{f_1^2} - \frac{f_2}{f_1+f_2} \frac{TEC}{f_2^2} = -\frac{TEC}{f_1 f_2}
+-\frac{f_1}{f_1+f_2} I_1 - \frac{f_2}{f_1+f_2} I_2 \approx -\frac{f_1}{f_1+f_2} \frac{40.3\cdot TEC}{f_1^2} - \frac{f_2}{f_1+f_2} \frac{40.3\cdot TEC}{f_2^2} = -\frac{40.3\cdot TEC}{f_1 f_2}
 $$
 
 while the code narrow lane ionospheric term is
 
 $$
-\frac{f_1}{f_1-f_2} I_1 - \frac{f_2}{f_1-f_2} I_2 = \frac{f_1}{f_1-f_2} \frac{TEC}{f_1^2} - \frac{f_2}{f_1-f_2} \frac{TEC}{f_2^2} = -\frac{TEC}{f_1 f_2}
+\frac{f_1}{f_1-f_2} I_1 - \frac{f_2}{f_1-f_2} I_2 = \frac{f_1}{f_1-f_2} \frac{40.3\cdot TEC}{f_1^2} - \frac{f_2}{f_1-f_2} \frac{40.3\cdot TEC}{f_2^2} = -\frac{40.3\cdot TEC}{f_1 f_2}
 $$
 
 Remarkably, both combinations yield the same ionospheric term $-\frac{TEC}{f_1 f_2}$, which demonstrates the ionosphere-free property of this widelane-narrow-lane differencing approach.
