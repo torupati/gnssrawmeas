@@ -1,4 +1,4 @@
-p # gnssraw
+# gnssraw
 
 GNSS RINEX observation plotting and raw measurement analysis.
 
