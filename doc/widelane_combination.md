@@ -29,7 +29,7 @@ Where:
 Taking substraction of the tow phase observations
 
 $$
-\Phi_1 - \Phi_2 = \left(\frac{1}{\lambda_1} - \frac{1}{\lambda_2}\right) \left(\rho + c(dt^s - dt_r) + T\right) - \frac{I_1}{\lambda_1} - \frac{I_2}{\lambda_2} + N_1 - N_2 + \epsilon_{L,1} +  + \epsilon_{L,2}
+\Phi_1 - \Phi_2 = \left(\frac{1}{\lambda_1} - \frac{1}{\lambda_2}\right) \left(\rho + c(dt^s - dt_r) + T\right) - \frac{I_1}{\lambda_1} - \frac{I_2}{\lambda_2} + N_1 - N_2 + \epsilon_{L,1} - \epsilon_{L,2}
 $$
 
 We can thnik new frequency or wavelength for this combined measurement.
