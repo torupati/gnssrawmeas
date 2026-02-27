@@ -1,5 +1,6 @@
 import logging
 from pathlib import Path
+from typing import cast, Any
 
 import matplotlib.pyplot as plt
 
@@ -24,7 +25,7 @@ _GOODSTYLE_RC = {
 def _apply_goodstyle(fig, axes):
     """Apply a light-and-minimal style to *fig* and all *axes* in-place."""
     fig.patch.set_facecolor(_GOODSTYLE_RC["figure.facecolor"])
-    colors = plt.cm.tab10.colors  # type: ignore[attr-defined]
+    colors = plt.cm.tab10.colors
     for ax in axes:
         ax.set_facecolor(_GOODSTYLE_RC["axes.facecolor"])
         for spine in ("top", "right"):
@@ -34,7 +35,11 @@ def _apply_goodstyle(fig, axes):
         ax.tick_params(colors=_GOODSTYLE_RC["xtick.color"])
         ax.yaxis.label.set_color(_GOODSTYLE_RC["axes.labelcolor"])
         ax.xaxis.label.set_color(_GOODSTYLE_RC["axes.labelcolor"])
-        ax.grid(True, color=_GOODSTYLE_RC["grid.color"], linewidth=_GOODSTYLE_RC["grid.linewidth"])
+        ax.grid(
+            True,
+            color=_GOODSTYLE_RC["grid.color"],
+            linewidth=_GOODSTYLE_RC["grid.linewidth"],
+        )
         legend = ax.get_legend()
         if legend is not None:
             legend.set_frame_on(False)
@@ -224,7 +229,7 @@ def plot_satellite_observations(
         fig.suptitle(f"Satellite {sat_id} Observations", fontsize=16)
 
         # Flatten to a 1D list of Axes for consistent indexing.
-        axes = axes.flatten()
+        axes = cast(Any, axes.flatten())
 
         plot_idx = 0
 

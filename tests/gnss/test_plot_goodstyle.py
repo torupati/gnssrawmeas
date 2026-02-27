@@ -1,10 +1,10 @@
 """Tests for the --plot-goodstyle feature in plot_satellite_observations."""
+
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import matplotlib
 import matplotlib.pyplot as plt
-import pytest
 
 matplotlib.use("Agg")
 
