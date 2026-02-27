@@ -73,7 +73,7 @@ $$
 \epsilon_{L,WL} = \frac{f_1}{f_1-f_2} \epsilon_{L,1} + \frac{f_2}{f_1-f_2} \epsilon_{L,2}
 $$
 
-If we set equal variance of the $\epsilon_{L,1}=\epsilon_{L,2} = \epsilon_L$, the phase wide lane noise varaince would be
+If we set equal variance of the $\epsilon_{L,1}=\epsilon_{L,2} = \epsilon_L$, the phase wide lane noise variance would be
 
 $$
 \sigma_{L,WL}^2 = \left(\frac{f_1}{f_1-f_2}\right)^2 \sigma_L^2 + \left(\frac{f_2}{f_1-f_2}\right)^2 \sigma_L^2 = \sigma_L^2 \frac{f_1^2 + f_2^2}{(f_1-f_2)^2}
