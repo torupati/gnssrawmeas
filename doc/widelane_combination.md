@@ -98,7 +98,7 @@ $$
 $$
 
 $$
-\Rho_2 = \rho + c(dt^s-dt_r) + T + I_2 + \epsilon_{\Rho,1}
+\Rho_2 = \rho + c(dt^s-dt_r) + T + I_2 + \epsilon_{\Rho,2}
 $$
 
 In the same manner of phase widelane linear combination, narrow lane linear combination of code range can be defined as:
