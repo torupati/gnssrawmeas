@@ -32,13 +32,13 @@ Rulesets are GitHub's modern approach to branch protection, offering more flexib
      - Required approvals: `1`
      - Dismiss stale pull request approvals when new commits are pushed: ✅
      - Require review from Code Owners: ⬜ (optional)
-   
+
    - ✅ **Require status checks to pass**
      - Add required check: `lint-typecheck`
      - Require branches to be up to date before merging: ⬜ (optional - can slow development)
-   
+
    - ✅ **Block force pushes**
-   
+
    - ✅ **Restrict deletions**
 
 5. **Set Enforcement Level**
@@ -78,15 +78,15 @@ If you prefer the classic approach:
      - ✅ Require approvals: `1`
      - ✅ Dismiss stale pull request approvals when new commits are pushed
      - ⬜ Require review from Code Owners (optional)
-   
+
    - ✅ **Require status checks to pass before merging**
      - ✅ Require branches to be up to date before merging (optional)
      - Search for and add: `lint-typecheck`
-   
+
    - ✅ **Require linear history** (optional - for cleaner git history)
-   
+
    - ✅ **Do not allow bypassing the above settings** (or allow for admins only)
-   
+
    - ✅ **Include administrators** (apply rules to admins too)
 
 4. **Save Changes**
@@ -142,7 +142,7 @@ For smooth adoption:
 
 ### Issue: CI check not appearing in required checks
 
-**Solution**: 
+**Solution**:
 - Ensure the workflow has run at least once on a PR
 - Check that the job name in `.github/workflows/ci.yml` matches exactly
 - The check name is `lint-typecheck` from the `lint-typecheck:` job
@@ -172,7 +172,7 @@ For smooth adoption:
 
 The current CI workflow (`.github/workflows/ci.yml`) already runs:
 - Ruff linting
-- Ruff formatting check  
+- Ruff formatting check
 - Mypy type checking
 
 These checks will automatically be available for the "require status checks" rule.
@@ -193,10 +193,10 @@ Consider adding later:
    ```markdown
    # .github/pull_request_template.md
    ## Description
-   
+
    ## Related Issues
    Fixes #
-   
+
    ## Testing
    - [ ] Linting passes
    - [ ] Type checking passes
@@ -228,5 +228,5 @@ These five steps provide immediate benefit with minimal friction.
 
 ---
 
-**Last Updated**: 2026-01-16  
+**Last Updated**: 2026-01-16
 **Maintained by**: Repository administrators

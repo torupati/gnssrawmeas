@@ -39,7 +39,7 @@ Required status checks before merging:
 ### 5. Restrict Direct Pushes
 
 - **Allow force pushes**: Disabled
-- **Allow deletions**: Disabled  
+- **Allow deletions**: Disabled
 - **Restrict who can push**: Enable for repository maintainers only
 - **Rationale**: Prevents accidental force pushes or deletions that could cause data loss
 
@@ -91,14 +91,14 @@ GitHub Rulesets (modern alternative to branch protection) should be configured a
 1. ✅ Require pull request before merging
    - Required approvals: 1
    - Dismiss stale reviews on push
-   
+
 2. ✅ Require status checks to pass
    - Required checks:
      - `lint-typecheck` (Lint and Type Check workflow)
    - Require branches to be up to date: Optional
-   
+
 3. ✅ Block force pushes
-   
+
 4. ✅ Restrict deletions
 
 5. ✅ Require linear history (optional)
@@ -165,5 +165,5 @@ If you have questions about these rules or suggestions for improvements, please:
 
 ---
 
-**Last Updated**: 2026-01-16  
+**Last Updated**: 2026-01-16
 **Applies to**: gnssraw repository (torupati/gnssraw)
