@@ -9,6 +9,7 @@ from app.gnss.satellite_signals import (
     EpochObservations,
     parse_rinex_observation_file,
     save_gnss_observations_to_json,
+    save_ambiguity_statistics_to_csv,
     calculate_combined_observations,
 )
 from app.gnss.rtcm3 import read_rtcm3_file
@@ -68,6 +69,11 @@ def main():
         "--json",
         type=str,
         help="Save parsed data to JSON file (specify output file path)",
+    )
+    parser.add_argument(
+        "--csv",
+        type=str,
+        help="Save ambiguity statistics to CSV file (specify output file path)",
     )
     parser.add_argument(
         "--plot-mode",
@@ -209,6 +215,12 @@ def main():
         json_output_path = Path(args.json)
         save_gnss_observations_to_json(epochs, json_output_path)
         logger.info(f"Saved parsed data to JSON: {json_output_path}")
+
+    # Save ambiguity statistics to CSV if requested
+    if args.csv:
+        csv_output_path = Path(args.csv)
+        save_ambiguity_statistics_to_csv(epochs, csv_output_path)
+        logger.info(f"Saved ambiguity statistics to CSV: {csv_output_path}")
 
     # Generate plots
     if args.skip_plot:
