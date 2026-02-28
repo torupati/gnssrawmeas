@@ -1,6 +1,6 @@
-# GNSS Remote Sensing Project
+# GNSS Remote Sensing
 
-This is my personal project of GNSS remote sensing.
+`GNSS Remote Sensing` is my personal project of GNSS remote sensing.
 GNSS RINEX observation plotting and raw measurement analysis.
 
 This project uses **uv** for dependency and environment management.
@@ -18,7 +18,7 @@ This project uses **uv** for dependency and environment management.
 
 ### GNSS Fundamentals
 - [GNSS Frequencies](doc/gnss_frequencies.md) - GNSS signal frequency specifications and wavelengths
-- [Ranging Signals](doc/ranging_sianals.md) - Overview of ranging signal codes and characteristics
+- [Ranging Signals](doc/ranging_signals.md) - Overview of ranging signal codes and characteristics
 - [Computation Reference](doc/computation_reference.md) - Mathematical references and computation formulas
 
 ### Signal Processing
