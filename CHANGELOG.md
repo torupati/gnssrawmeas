@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Core Features
-- Initial release of gnssraw library
+- Initial release of gnss-remote-sensing library
 - RINEX 3.04/3.05 observation file parsing and processing
 - Core GNSS measurement analysis capabilities
 - Signal combination support (widelane, ionosphere-free)
@@ -73,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Notes for Users
 
-This is the first stable release of gnssraw. The API is considered stable, but
+This is the first stable release of gnss-remote-sensing. The API is considered stable, but
 users should report any unexpected behavior or edge cases encountered.
 
 Sample data is included in `sample_data/` for testing and learning purposes.

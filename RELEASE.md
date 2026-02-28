@@ -4,7 +4,7 @@
 
 ## Overview
 
-Initial release of `gnssraw` - A Python library for GNSS RINEX observation plotting and raw measurement analysis.
+Initial release of `gnss-remote-sensing` - A Python library for GNSS RINEX observation plotting and raw measurement analysis.
 
 This version provides foundational capabilities for processing and analyzing Global Navigation Satellite System (GNSS) measurements from RINEX format files.
 

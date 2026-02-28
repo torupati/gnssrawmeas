@@ -1,7 +1,7 @@
 .PHONY: help install lint format type-check test test-cov ci clean
 
 help:
-	@echo "gnssraw Makefile targets:"
+	@echo "gnss-remote-sensing Makefile targets:"
 	@echo "  install        - Install development dependencies"
 	@echo "  lint           - Run ruff linter (GitHub format)"
 	@echo "  format         - Check code formatting with ruff"
