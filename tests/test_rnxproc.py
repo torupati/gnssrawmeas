@@ -109,6 +109,8 @@ def test_csv_export(
 
         # Check that all required columns exist
         expected_columns = [
+            "start_time",
+            "end_time",
             "satellite",
             "band",
             "num_epochs",
@@ -118,13 +120,16 @@ def test_csv_export(
             "snr_mean",
             "snr_max_min",
         ]
+        assert reader.fieldnames is not None, "CSV file should have headers"
         for col in expected_columns:
             assert col in reader.fieldnames, f"Column '{col}' should exist in CSV"
 
         # Validate first row has reasonable values
         first_row = rows[0]
-        assert first_row["satellite"].startswith(
-            ("G", "E", "J", "R")
-        ), "Satellite ID should start with G, E, J, or R"
-        assert "_" in first_row["band"], "Band should be a frequency combination like L1_L2"
+        assert first_row["satellite"].startswith(("G", "E", "J", "R")), (
+            "Satellite ID should start with G, E, J, or R"
+        )
+        assert "_" in first_row["band"], (
+            "Band should be a frequency combination like L1_L2"
+        )
         assert int(first_row["num_epochs"]) > 0, "num_epochs should be greater than 0"

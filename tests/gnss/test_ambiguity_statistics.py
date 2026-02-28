@@ -1,4 +1,5 @@
 """Tests for ambiguity statistics computation."""
+
 from datetime import datetime
 from pathlib import Path
 import tempfile
