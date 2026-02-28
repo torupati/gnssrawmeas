@@ -16,22 +16,22 @@ install:
 	pip install -e ".[dev]" || uv pip install -e .
 
 lint:
-	ruff check . --output-format=github
+	uv run ruff check . --output-format=github
 
 format:
-	ruff format --check .
+	uv run ruff format --check .
 
 format-fix:
-	ruff format .
+	rv run ruff format .
 
 type-check:
-	mypy --explicit-package-bases --exclude '(^|/)misc/' ./app --pretty
+	uv run mypy --explicit-package-bases --exclude '(^|/)misc/' ./app --pretty
 
 test:
-	pytest tests/ -v
+	uv run pytest tests/ -v
 
 test-cov:
-	pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
+	uv run pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=xml
 
 ci: lint format type-check test-cov
 	@echo "✅ All CI checks passed!"
