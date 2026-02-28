@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -10,6 +11,15 @@ from app.gnss.ephemeris import (
     compute_satellite_state,
     read_rinex_nav,
 )
+
+# Check if nav file exists for conditional test skipping
+NAV_FILE = (
+    Path(__file__).parent.parent.parent
+    / "sample_data"
+    / "single_epoch"
+    / "3075358x_1epoch_TEST.nav"
+)
+HAS_NAV_FILE = NAV_FILE.exists()
 
 satellite_position_ref = {
     10: {
@@ -361,6 +371,7 @@ class TestGPSEphemeris:
 class TestReadRinexNav:
     """Test suite for read_rinex_nav function"""
 
+    @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_read_existing_file(self):
         """Test reading a real RINEX nav file"""
         nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
@@ -377,6 +388,7 @@ class TestReadRinexNav:
             for eph in eph_list:
                 assert isinstance(eph, GPSEphemeris)
 
+    @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_ephemeris_attributes(self):
         """Test that read ephemeris has all required attributes"""
         nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
@@ -400,6 +412,7 @@ class TestReadRinexNav:
 class TestComputeSatellitePosition:
     """Test suite for compute_satellite_position function"""
 
+    @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_compute_position_basic(self):
         """Test basic satellite position computation"""
         nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
@@ -425,6 +438,7 @@ class TestComputeSatellitePosition:
             assert isinstance(clk, float)
             assert abs(clk) < 1.0
 
+    @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_position_against_reference(self):
         """Test computed positions against RTKLIB reference values"""
         nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"

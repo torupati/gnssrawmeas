@@ -1,5 +1,5 @@
 [project]
-name = "gnssraw"
+name = "gnss-remote-sensing"
 version = "0.1.0"
 description = "GNSS RINEX observation plotting and raw measurement analysis"
 readme = "README.md"

@@ -31,24 +31,24 @@ $$
 \sigma_k^2 = \sigma_{k-1}^2 + 2\nu^2
 $$
 
-Here noise of carrier phase $\nu$ is regarted as a process noise of Kalman filter. This corresponds to prediction step of Kalman filter.
+Here noise of carrier phase $\nu$ is regarded as a process noise of Kalman filter. This corresponds to prediction step of Kalman filter.
 
-If we write noise of pseudorange by $\xi$, the poseteriori
+If we write noise of pseudorange by $\xi$, the posteriori
 
 $$
    \hat{P}_k^+ = \argmax_{P_k} P(P_k|P_k^-)P(P_k^-)
 $$
 
-can be calculated. The mean ans variance should be
+can be calculated. The mean and variance should be
 
 $$
-  P_k^+ \leftarrow P_k^- + \frac{(\sigma_k^-)^2}{(\sigma_k^-)^2+\nu^2} (P_k - P_k^-)
+  P_k^+ \leftarrow P_k^- + \frac{(\sigma_k^-)^2}{(\sigma_k^-)^2+\xi^2} (P_k - P_k^-)
 $$
 
 and
 
 $$
-  (\sigma_k^+)^2 \leftarrow (\sigma^-_k)^2 \left(1 - \frac{(\sigma_k^-)^2}{(\sigma_k^-)^2+\nu^2} \right)
+  (\sigma_k^+)^2 \leftarrow (\sigma^-_k)^2 \left(1 - \frac{(\sigma_k^-)^2}{(\sigma_k^-)^2+\xi^2} \right)
 $$
 
 

@@ -1,1 +1,1 @@
-"""Tests for gnssraw application."""
+"""Tests for gnss-remote-sensing application."""
