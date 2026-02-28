@@ -448,6 +448,8 @@ def compute_ambiguity_statistics(
 
     Returns:
         List of dictionaries containing statistics for each satellite-band combination:
+        - start_time: First observation datetime for this satellite-band
+        - end_time: Last observation datetime for this satellite-band
         - satellite: Satellite ID (e.g., "G01")
         - band: Frequency combination (e.g., "L1_L2")
         - num_epochs: Number of observations
@@ -477,32 +479,45 @@ def compute_ambiguity_statistics(
                 for comb_name, amb_obs in sat_obs.ambiguities.items():
                     if comb_name not in satellite_ambiguity_data[sat_id]:
                         satellite_ambiguity_data[sat_id][comb_name] = {
+                            "times": [],
                             "widelane_values": [],
                             "snr_values": [],
                         }
 
-                    satellite_ambiguity_data[sat_id][comb_name]["widelane_values"].append(
-                        amb_obs.widelane
+                    # Record epoch time
+                    satellite_ambiguity_data[sat_id][comb_name]["times"].append(
+                        epoch.datetime
                     )
+
+                    satellite_ambiguity_data[sat_id][comb_name][
+                        "widelane_values"
+                    ].append(amb_obs.widelane)
 
                     # Extract SNR from the first band in the combination
                     # For "L1_L2", get SNR from L1 band
                     first_band = comb_name.split("_")[0]
                     if first_band in sat_obs.signals:
-                        satellite_ambiguity_data[sat_id][comb_name]["snr_values"].append(
-                            sat_obs.signals[first_band].snr
-                        )
+                        satellite_ambiguity_data[sat_id][comb_name][
+                            "snr_values"
+                        ].append(sat_obs.signals[first_band].snr)
 
     # Compute statistics for each satellite-band combination
     statistics = []
     for sat_id, band_data in satellite_ambiguity_data.items():
         for band, values in band_data.items():
+            times = values["times"]
             wl_values = values["widelane_values"]
             snr_values = values["snr_values"]
 
+            # Get start and end times for this satellite-band combination
+            start_time = min(times) if times else None
+            end_time = max(times) if times else None
+
             if wl_values:
                 wl_mean = sum(wl_values) / len(wl_values)
-                wl_std = (sum((x - wl_mean) ** 2 for x in wl_values) / len(wl_values)) ** 0.5
+                wl_std = (
+                    sum((x - wl_mean) ** 2 for x in wl_values) / len(wl_values)
+                ) ** 0.5
                 wl_max_min = max(wl_values) - min(wl_values)
             else:
                 wl_mean = wl_std = wl_max_min = 0.0
@@ -513,16 +528,20 @@ def compute_ambiguity_statistics(
             else:
                 snr_mean = snr_max_min = 0.0
 
-            statistics.append({
-                "satellite": sat_id,
-                "band": band,
-                "num_epochs": len(wl_values),
-                "widelane_ambiguity_mean": wl_mean,
-                "widelane_ambiguity_std": wl_std,
-                "widelane_ambiguity_max_min": wl_max_min,
-                "snr_mean": snr_mean,
-                "snr_max_min": snr_max_min,
-            })
+            statistics.append(
+                {
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "satellite": sat_id,
+                    "band": band,
+                    "num_epochs": len(wl_values),
+                    "widelane_ambiguity_mean": wl_mean,
+                    "widelane_ambiguity_std": wl_std,
+                    "widelane_ambiguity_max_min": wl_max_min,
+                    "snr_mean": snr_mean,
+                    "snr_max_min": snr_max_min,
+                }
+            )
 
     return statistics
 
@@ -549,6 +568,8 @@ def save_ambiguity_statistics_to_csv(
     with open(output_file, "w", encoding="utf-8", newline="") as f:
         if statistics:
             fieldnames = [
+                "start_time",
+                "end_time",
                 "satellite",
                 "band",
                 "num_epochs",
@@ -560,6 +581,12 @@ def save_ambiguity_statistics_to_csv(
             ]
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
+            # Convert datetime objects to ISO format strings
+            for stat in statistics:
+                if stat["start_time"] is not None:
+                    stat["start_time"] = stat["start_time"].isoformat()
+                if stat["end_time"] is not None:
+                    stat["end_time"] = stat["end_time"].isoformat()
             writer.writerows(statistics)
 
     logger.info(f"Saved ambiguity statistics to CSV: {output_file}")
