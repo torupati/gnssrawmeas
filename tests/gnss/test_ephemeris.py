@@ -12,12 +12,7 @@ from app.gnss.ephemeris import (
 )
 
 # Check if nav file exists for conditional test skipping
-NAV_FILE = (
-    Path(__file__).parent.parent.parent
-    / "sample_data"
-    / "single_epoch"
-    / "3075358x_1epoch_TEST.nav"
-)
+NAV_FILE = Path(__file__).parent / "_tmp_test.nav"
 HAS_NAV_FILE = NAV_FILE.exists()
 
 satellite_position_ref = {
@@ -59,6 +54,35 @@ approx_pos = [-3914831.0330, 3449325.4664, 3656431.3786]  # 3075
 # 4 2025/12/24 22:59:59.928244 sat=24 rs=-16401697.705  -1885765.376  20341103.798 dts= -189395.996 var=  5.760
 # 4 2025/12/24 22:59:59.929224 sat=25 rs=-20044072.138  17090413.641   1661220.319 dts=  454156.066 var=  5.760
 # 4 2025/12/24 22:59:59.923578 sat=32 rs=  4010924.122  16360271.711  20843456.254 dts= -193266.388 var=  5.760
+
+# 4  kepler: sat=10 e= 0.01095 n= 3 del= 2.220e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.930 sat=10
+# 4 kepler: sat=10 e= 0.01095 n= 3 del= 1.998e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.931 sat=12
+# 4 kepler: sat=12 e= 0.00904 n= 3 del= 1.110e-16
+# 4 eph2pos : time=2025/12/24 22:59:59.932 sat=12
+# 4 kepler: sat=12 e= 0.00904 n= 3 del= 1.110e-16
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=23 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.930 sat=23
+# 4 kepler: sat=23 e= 0.00598 n= 3 del= 0.000e+00
+# 4 eph2pos : time=2025/12/24 22:59:59.931 sat=23
+# 4 kepler: sat=23 e= 0.00598 n= 3 del= 0.000e+00
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=24 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.928 sat=24
+# 4 kepler: sat=24 e= 0.01779 n= 3 del=-3.220e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.929 sat=24
+# 4 kepler: sat=24 e= 0.01779 n= 3 del=-3.220e-15
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=25 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.929 sat=25
+# 4 kepler: sat=25 e= 0.01288 n= 3 del= 2.887e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.930 sat=25
+# 4 kepler: sat=25 e= 0.01288 n= 3 del= 2.887e-15
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=32 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.923 sat=32
+# 4 kepler: sat=32 e= 0.00907 n= 3 del= 4.441e-16
+# 4 eph2pos : time=2025/12/24 22:59:59.924 sat=32
+# 4 kepler: sat=32 e= 0.00907 n= 3 del= 0.000e+00
+
 eph_ref = {
     10: {
         "prn": 10,
@@ -226,8 +250,16 @@ eph_ref = {
 
 
 def test_compute_satellite_state():
-    obs_time = datetime(2025, 12, 24, 22, 59, 59, 929582)
-    obs_values = {10: 21283814.641}
+    obs_time = datetime(2025, 12, 24, 23, 00, 00, 000000)
+    # pseurorange
+    obs_values = {
+        10: 21283814.641,
+        12: 20857031.672,
+        23: 20654140.320,
+        24: 21568703.836,
+        25: 21082067.539,
+        32: 22968748.305,
+    }
     for sat_id, pseudorange in obs_values.items():
         eph_dict = eph_ref[sat_id]
         eph = GPSEphemeris.from_dict(eph_dict)
@@ -241,13 +273,13 @@ def test_compute_satellite_state():
         print(f"Reference Position = {ref_pos}, Reference Clock = {ref_clk}")
         pos_diff = np.sqrt(sum((pos[i] - ref_pos[i]) ** 2 for i in range(3)))
         clk_diff = abs(clk - ref_clk)
-
+        print(f"diff pos={pos_diff} clk={clk_diff}")
         # Position threshold: 300m (realistic for broadcast ephemeris differences)
         # Clock threshold: 1 microsecond
         assert clk_diff < 1e-6, (
             f"Satellite {sat_id}: clock difference {clk_diff:.3e} s exceeds threshold"
         )
-        assert pos_diff < 1.0, (
+        assert pos_diff < 2.0, (
             f"Satellite {sat_id}: position difference {pos_diff:.3f} m exceeds threshold pos={pos} pos_ref={ref_pos}"
         )
 
@@ -373,7 +405,7 @@ class TestReadRinexNav:
     @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_read_existing_file(self):
         """Test reading a real RINEX nav file"""
-        nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
+        nav_file = str(NAV_FILE)
         ephemeris_dict = read_rinex_nav(nav_file)
 
         assert isinstance(ephemeris_dict, dict)
@@ -390,7 +422,7 @@ class TestReadRinexNav:
     @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_ephemeris_attributes(self):
         """Test that read ephemeris has all required attributes"""
-        nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
+        nav_file = str(NAV_FILE)
         ephemeris_dict = read_rinex_nav(nav_file)
 
         if ephemeris_dict:

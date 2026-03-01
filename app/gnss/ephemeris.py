@@ -4,11 +4,12 @@ Provides GPS ephemeris data structures and satellite position computation.
 """
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 import numpy as np
 
+from app.gnss.constants import CLIGHT
 
 # Physical constants
 GM_WGS84 = 3.986005e14  # WGS84 Earth's gravitational constant [m^3/s^2]
@@ -315,7 +316,7 @@ def read_rinex_nav(nav_file: str) -> Dict[str, List[GPSEphemeris]]:
 # -----------------------------------------
 # Satellite position computation functions
 # -----------------------------------------
-def _solve_kepler(M: float, e: float) -> float:
+def solve_kepler(M: float, e: float) -> float:
     """Solve Kepler's equation M = E - e*sin(E) for eccentric anomaly E using Newton's method"""
     E = M
     for _ in range(10):
@@ -346,7 +347,8 @@ def broadcast_ecef_and_clock(
     n = n0 + nav.delta_n
     M = nav.M0 + n * tk
 
-    E = _solve_kepler(M, nav.e)
+    E = solve_kepler(M, nav.e)
+    print("Eccentric anomaly E:", E)
     v = np.arctan2(np.sqrt(1 - nav.e**2) * np.sin(E), np.cos(E) - nav.e)
     phi = v + nav.omega
 
@@ -371,10 +373,14 @@ def broadcast_ecef_and_clock(
     y = x_prime * sinO + y_prime * cosi * cosO
     z = y_prime * sini
 
+    # Compute satellite clock correction at transmission time
     _, toc_sow = datetime_to_gps_week_seconds(nav.toc)
     dt = _wrap_time_diff(sow - toc_sow)
     dtsv = (
-        nav.af0 + nav.af1 * dt + nav.af2 * dt**2 + F_REL * nav.e * nav.sqrtA * np.sin(E)
+        nav.af0
+        + nav.af1 * dt
+        + nav.af2 * dt**2
+        + 2.0 * F_REL * nav.e * nav.sqrtA * np.sin(E)
     )
 
     return np.array([x, y, z]), dtsv
@@ -401,7 +407,9 @@ def compute_satellite_state(
     Returns:
         Tuple of (position [x,y,z] in ECEF meters, clock bias in seconds)
     """
-    _, sow = datetime_to_gps_week_seconds(recv_dt)
+    _, sow = datetime_to_gps_week_seconds(
+        recv_dt - timedelta(seconds=pseudorange_m / CLIGHT)
+    )
 
     # Compute satellite position at the observation/reception time
     # (not at transmission time, as the satellite's computed position
