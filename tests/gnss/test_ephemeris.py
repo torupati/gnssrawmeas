@@ -7,18 +7,12 @@ import pytest
 
 from app.gnss.ephemeris import (
     GPSEphemeris,
-    compute_satellite_position,
     compute_satellite_state,
     read_rinex_nav,
 )
 
 # Check if nav file exists for conditional test skipping
-NAV_FILE = (
-    Path(__file__).parent.parent.parent
-    / "sample_data"
-    / "single_epoch"
-    / "3075358x_1epoch_TEST.nav"
-)
+NAV_FILE = Path(__file__).parent / "_tmp_test.nav"
 HAS_NAV_FILE = NAV_FILE.exists()
 
 satellite_position_ref = {
@@ -60,12 +54,41 @@ approx_pos = [-3914831.0330, 3449325.4664, 3656431.3786]  # 3075
 # 4 2025/12/24 22:59:59.928244 sat=24 rs=-16401697.705  -1885765.376  20341103.798 dts= -189395.996 var=  5.760
 # 4 2025/12/24 22:59:59.929224 sat=25 rs=-20044072.138  17090413.641   1661220.319 dts=  454156.066 var=  5.760
 # 4 2025/12/24 22:59:59.923578 sat=32 rs=  4010924.122  16360271.711  20843456.254 dts= -193266.388 var=  5.760
+
+# 4  kepler: sat=10 e= 0.01095 n= 3 del= 2.220e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.930 sat=10
+# 4 kepler: sat=10 e= 0.01095 n= 3 del= 1.998e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.931 sat=12
+# 4 kepler: sat=12 e= 0.00904 n= 3 del= 1.110e-16
+# 4 eph2pos : time=2025/12/24 22:59:59.932 sat=12
+# 4 kepler: sat=12 e= 0.00904 n= 3 del= 1.110e-16
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=23 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.930 sat=23
+# 4 kepler: sat=23 e= 0.00598 n= 3 del= 0.000e+00
+# 4 eph2pos : time=2025/12/24 22:59:59.931 sat=23
+# 4 kepler: sat=23 e= 0.00598 n= 3 del= 0.000e+00
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=24 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.928 sat=24
+# 4 kepler: sat=24 e= 0.01779 n= 3 del=-3.220e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.929 sat=24
+# 4 kepler: sat=24 e= 0.01779 n= 3 del=-3.220e-15
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=25 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.929 sat=25
+# 4 kepler: sat=25 e= 0.01288 n= 3 del= 2.887e-15
+# 4 eph2pos : time=2025/12/24 22:59:59.930 sat=25
+# 4 kepler: sat=25 e= 0.01288 n= 3 del= 2.887e-15
+# 4 seleph  : time=2025/12/24 23:00:00.000 sat=32 iode=-1
+# 4 eph2pos : time=2025/12/24 22:59:59.923 sat=32
+# 4 kepler: sat=32 e= 0.00907 n= 3 del= 4.441e-16
+# 4 eph2pos : time=2025/12/24 22:59:59.924 sat=32
+# 4 kepler: sat=32 e= 0.00907 n= 3 del= 0.000e+00
+
 eph_ref = {
     10: {
         "prn": 10,
         "toc": "2025-12-24T22:00:00",
         "toe": 338400.0,
-        "week": 0,
+        "week": 2398,
         "af0": -0.0005768002010882,
         "af1": -3.637978807092e-12,
         "af2": 0.0,
@@ -227,8 +250,16 @@ eph_ref = {
 
 
 def test_compute_satellite_state():
-    obs_time = datetime(2025, 12, 24, 22, 59, 59, 929582)
-    obs_values = {10: 21283814.641}
+    obs_time = datetime(2025, 12, 24, 23, 00, 00, 000000)
+    # pseurorange
+    obs_values = {
+        10: 21283814.641,
+        12: 20857031.672,
+        23: 20654140.320,
+        24: 21568703.836,
+        25: 21082067.539,
+        32: 22968748.305,
+    }
     for sat_id, pseudorange in obs_values.items():
         eph_dict = eph_ref[sat_id]
         eph = GPSEphemeris.from_dict(eph_dict)
@@ -242,14 +273,14 @@ def test_compute_satellite_state():
         print(f"Reference Position = {ref_pos}, Reference Clock = {ref_clk}")
         pos_diff = np.sqrt(sum((pos[i] - ref_pos[i]) ** 2 for i in range(3)))
         clk_diff = abs(clk - ref_clk)
-
+        print(f"diff pos={pos_diff} clk={clk_diff}")
         # Position threshold: 300m (realistic for broadcast ephemeris differences)
         # Clock threshold: 1 microsecond
-        assert pos_diff < 300.0, (
-            f"Satellite {sat_id}: position difference {pos_diff:.3f} m exceeds threshold"
-        )
         assert clk_diff < 1e-6, (
             f"Satellite {sat_id}: clock difference {clk_diff:.3e} s exceeds threshold"
+        )
+        assert pos_diff < 2.0, (
+            f"Satellite {sat_id}: position difference {pos_diff:.3f} m exceeds threshold pos={pos} pos_ref={ref_pos}"
         )
 
 
@@ -374,7 +405,7 @@ class TestReadRinexNav:
     @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_read_existing_file(self):
         """Test reading a real RINEX nav file"""
-        nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
+        nav_file = str(NAV_FILE)
         ephemeris_dict = read_rinex_nav(nav_file)
 
         assert isinstance(ephemeris_dict, dict)
@@ -391,7 +422,7 @@ class TestReadRinexNav:
     @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
     def test_ephemeris_attributes(self):
         """Test that read ephemeris has all required attributes"""
-        nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
+        nav_file = str(NAV_FILE)
         ephemeris_dict = read_rinex_nav(nav_file)
 
         if ephemeris_dict:
@@ -407,80 +438,3 @@ class TestReadRinexNav:
             assert hasattr(first_eph, "sqrtA")
             assert hasattr(first_eph, "toe")
             assert hasattr(first_eph, "week")
-
-
-class TestComputeSatellitePosition:
-    """Test suite for compute_satellite_position function"""
-
-    @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
-    def test_compute_position_basic(self):
-        """Test basic satellite position computation"""
-        nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
-        ephemeris_dict = read_rinex_nav(nav_file)
-
-        if ephemeris_dict:
-            sat_id = next(iter(ephemeris_dict.keys()))
-            eph_list = ephemeris_dict[sat_id]
-            eph = eph_list[0]  # Use first ephemeris
-            obs_time = datetime(2025, 12, 24, 22, 59, 59)
-
-            pos, clk = compute_satellite_position(eph, obs_time)
-
-            # Check position is 3D vector
-            assert len(pos) == 3
-            assert all(isinstance(x, float) for x in pos)
-
-            # Check position magnitude (typical GPS orbit ~26,000 km)
-            pos_magnitude = np.sqrt(sum(x**2 for x in pos))
-            assert 20000e3 < pos_magnitude < 30000e3
-
-            # Check clock correction is reasonable (within ±1 second)
-            assert isinstance(clk, float)
-            assert abs(clk) < 1.0
-
-    @pytest.mark.skipif(not HAS_NAV_FILE, reason=f"NAV file not found: {NAV_FILE}")
-    def test_position_against_reference(self):
-        """Test computed positions against RTKLIB reference values"""
-        nav_file = "/home/xtkd/torupati/gnssraw/sample_data/single_epoch/3075358x_1epoch_TEST.nav"
-        ephemeris_dict = read_rinex_nav(nav_file)
-
-        # Test against reference data
-        for sat_num, ref_data in satellite_position_ref.items():
-            sat_id = f"{sat_num}"
-            if sat_id in ephemeris_dict:
-                eph_list = ephemeris_dict[sat_id]
-                obs_time = ref_data["datetime"]
-
-                # Find ephemeris with closest TOE to observation time
-                best_eph = min(
-                    eph_list,
-                    key=lambda e: abs(
-                        e.toe
-                        - (
-                            obs_time.hour * 3600
-                            + obs_time.minute * 60
-                            + obs_time.second
-                        )
-                    ),
-                )
-
-                pos, clk = compute_satellite_position(best_eph, obs_time)
-
-                # Check position (allow ~meter-level differences)
-                ref_pos = ref_data["pos"]
-                pos_diff = np.sqrt(sum((pos[i] - ref_pos[i]) ** 2 for i in range(3)))
-
-                # Position difference should be < 10 meters
-                # (differences can occur due to implementation details)
-                assert pos_diff < 10.0, (
-                    f"Satellite {sat_id}: position difference {pos_diff:.3f} m exceeds threshold"
-                )
-
-                # Check clock (allow nanosecond-level differences)
-                ref_clk = ref_data["clk"]
-                clk_diff = abs(clk - ref_clk)
-
-                # Clock difference should be < 1e-6 seconds (1 microsecond)
-                assert clk_diff < 1e-6, (
-                    f"Satellite {sat_id}: clock difference {clk_diff:.3e} s exceeds threshold"
-                )
