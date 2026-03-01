@@ -377,10 +377,7 @@ def broadcast_ecef_and_clock(
     _, toc_sow = datetime_to_gps_week_seconds(nav.toc)
     dt = _wrap_time_diff(sow - toc_sow)
     dtsv = (
-        nav.af0
-        + nav.af1 * dt
-        + nav.af2 * dt**2
-        + 2.0 * F_REL * nav.e * nav.sqrtA * np.sin(E)
+        nav.af0 + nav.af1 * dt + nav.af2 * dt**2 + F_REL * nav.e * nav.sqrtA * np.sin(E)
     )
 
     return np.array([x, y, z]), dtsv
@@ -394,15 +391,10 @@ def compute_satellite_state(
     """
     Compute satellite position and clock bias at observation time using broadcast ephemeris.
 
-    This implements the standard GPS ephemeris to position conversion
-    similar to RTKLIB's eph2pos function, computing the position at the
-    observation/reception time.
-
     Args:
         nav: Broadcast ephemeris
         recv_dt: Reception/observation time (UTC datetime)
-        pseudorange_m: Measured pseudorange (meters) - not used for position computation,
-                      provided for context/validation purposes
+        pseudorange_m: Measured pseudorange (meters)
 
     Returns:
         Tuple of (position [x,y,z] in ECEF meters, clock bias in seconds)
@@ -410,9 +402,5 @@ def compute_satellite_state(
     _, sow = datetime_to_gps_week_seconds(
         recv_dt - timedelta(seconds=pseudorange_m / CLIGHT)
     )
-
-    # Compute satellite position at the observation/reception time
-    # (not at transmission time, as the satellite's computed position
-    # from ephemeris relates to its motion at this epoch)
     sat_pos, dtsv = broadcast_ecef_and_clock(nav, sow)
     return sat_pos, dtsv
