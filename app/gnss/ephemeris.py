@@ -4,11 +4,10 @@ Provides GPS ephemeris data structures and satellite position computation.
 """
 
 import json
-from datetime import datetime, timedelta, timezone
-from typing import Dict, List, Tuple, Optional
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 import numpy as np
-from app.gnss.constants import CLIGHT
 
 
 # Physical constants
@@ -375,11 +374,7 @@ def broadcast_ecef_and_clock(
     _, toc_sow = datetime_to_gps_week_seconds(nav.toc)
     dt = _wrap_time_diff(sow - toc_sow)
     dtsv = (
-        nav.af0
-        + nav.af1 * dt
-        + nav.af2 * dt**2
-        + F_REL * nav.e * nav.sqrtA * np.sin(E)
-        - nav.tgd
+        nav.af0 + nav.af1 * dt + nav.af2 * dt**2 + F_REL * nav.e * nav.sqrtA * np.sin(E)
     )
 
     return np.array([x, y, z]), dtsv
@@ -390,114 +385,26 @@ def compute_satellite_state(
     recv_dt: datetime,
     pseudorange_m: float,
 ) -> tuple[np.ndarray, float]:
-    _, sow = datetime_to_gps_week_seconds(recv_dt)
-
-    t_tx = sow - pseudorange_m / CLIGHT
-    for _ in range(2):
-        sat_pos, dtsv = broadcast_ecef_and_clock(nav, t_tx)
-        t_tx = sow - (pseudorange_m + CLIGHT * dtsv) / CLIGHT
-
-    sat_pos, dtsv = broadcast_ecef_and_clock(nav, t_tx)
-    return sat_pos, dtsv
-
-
-def compute_satellite_position(
-    eph: GPSEphemeris, obs_time: datetime, transit_time: float = 0.075
-) -> Tuple[np.ndarray, float]:
     """
-    Compute satellite position and clock correction
+    Compute satellite position and clock bias at observation time using broadcast ephemeris.
+
+    This implements the standard GPS ephemeris to position conversion
+    similar to RTKLIB's eph2pos function, computing the position at the
+    observation/reception time.
 
     Args:
-        eph: Ephemeris data
-        obs_time: Observation time
-        transit_time: Initial estimate of signal transit time [s] (default: 0.075s ≈ ~22,500km)
+        nav: Broadcast ephemeris
+        recv_dt: Reception/observation time (UTC datetime)
+        pseudorange_m: Measured pseudorange (meters) - not used for position computation,
+                      provided for context/validation purposes
 
     Returns:
-        Tuple of satellite position [x, y, z] (m) and clock correction (s)
+        Tuple of (position [x,y,z] in ECEF meters, clock bias in seconds)
     """
-    # Convert observation time to seconds within GPS week
-    # Calculate GPS week start time (Sunday 00:00:00)
-    day_of_week = obs_time.weekday()
-    if day_of_week == 6:  # Sunday
-        days_since_sunday = 0
-    else:
-        days_since_sunday = day_of_week + 1
+    _, sow = datetime_to_gps_week_seconds(recv_dt)
 
-    week_start = obs_time - timedelta(
-        days=days_since_sunday,
-        hours=obs_time.hour,
-        minutes=obs_time.minute,
-        seconds=obs_time.second,
-        microseconds=obs_time.microsecond,
-    )
-
-    t_obs = (obs_time - week_start).total_seconds()
-
-    # Estimate signal transmission time (observation time - signal transit time)
-    t_sv = t_obs - transit_time
-
-    # Time difference calculation
-    dt_toc = (obs_time - eph.toc).total_seconds()
-    tk = t_sv - eph.toe  # Time elapsed from ephemeris reference time
-
-    # Correction for crossing GPS week boundary
-    if tk > 302400:
-        tk -= 604800
-    elif tk < -302400:
-        tk += 604800
-
-    # Semi-major axis
-    A = eph.sqrtA**2
-
-    # Mean motion calculation
-    n0 = np.sqrt(GM_WGS84 / (A**3))
-    n = n0 + eph.delta_n
-
-    # Mean anomaly
-    M = eph.M0 + n * tk
-
-    # Solve eccentric anomaly using Newton-Raphson method for Kepler's equation: E - e*sin(E) = M
-    E = M
-    for _ in range(15):
-        f = E - eph.e * np.sin(E) - M
-        f_prime = 1.0 - eph.e * np.cos(E)
-        delta_E = -f / f_prime
-        E += delta_E
-        if abs(delta_E) < 1e-13:
-            break
-
-    # True anomaly
-    nu = np.arctan2(np.sqrt(1 - eph.e**2) * np.sin(E), np.cos(E) - eph.e)
-
-    # Argument of latitude
-    Phi = nu + eph.omega
-
-    # Perturbation corrections
-    du = eph.cuc * np.cos(2 * Phi) + eph.cus * np.sin(2 * Phi)
-    dr = eph.crc * np.cos(2 * Phi) + eph.crs * np.sin(2 * Phi)
-    di = eph.cic * np.cos(2 * Phi) + eph.cis * np.sin(2 * Phi)
-
-    # Corrected values
-    u = Phi + du
-    r = A * (1 - eph.e * np.cos(E)) + dr
-    i = eph.i0 + di + eph.idot * tk
-
-    # Position in orbital plane
-    x_orb = r * np.cos(u)
-    y_orb = r * np.sin(u)
-
-    # Corrected longitude of ascending node
-    Omega = eph.Omega0 + (eph.Omegadot - OMEGA_E) * tk - OMEGA_E * eph.toe
-
-    # Transform from orbital plane to ECEF coordinate system
-    x = x_orb * np.cos(Omega) - y_orb * np.cos(i) * np.sin(Omega)
-    y = x_orb * np.sin(Omega) + y_orb * np.cos(i) * np.cos(Omega)
-    z = y_orb * np.sin(i)
-
-    # Satellite clock correction
-    dtr = eph.af0 + eph.af1 * dt_toc + eph.af2 * dt_toc**2
-
-    # Relativistic correction
-    dtr += F_REL * eph.e * eph.sqrtA * np.sin(E)
-
-    return np.array([x, y, z]), dtr
+    # Compute satellite position at the observation/reception time
+    # (not at transmission time, as the satellite's computed position
+    # from ephemeris relates to its motion at this epoch)
+    sat_pos, dtsv = broadcast_ecef_and_clock(nav, sow)
+    return sat_pos, dtsv
