@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from logging import getLogger, basicConfig, INFO
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -21,6 +20,7 @@ from app.gnss.ephemeris import (
     datetime_to_gps_week_seconds,
 )
 from app.gnss.satellite_signals import EpochObservations, parse_rinex_observation_file
+from app.gnss.ionosphere import KlobucharManager, KlobucharModel
 
 logger = getLogger(__name__)
 
@@ -41,11 +41,11 @@ def select_ephemeris(
     nav_data: dict[str, list[GPSEphemeris]],
     sv: str,
     sow: float,
-) -> Optional[GPSEphemeris]:
+) -> GPSEphemeris:
     """Select the best ephemeris message for a given satellite and time."""
     messages = nav_data.get(sv, [])
     if not messages:
-        return None
+        raise ValueError(f"No ephemeris available for satellite {sv}")
     # Return the ephemeris with the closest toe to sow
     return min(
         messages, key=lambda msg: abs((sow - msg.toe + 302400) % 604800 - 302400)
@@ -129,6 +129,7 @@ def apply_earth_rotation_correction(
 def single_point_positioning(
     epochs: list[EpochObservations],
     nav_data: dict[str, list[GPSEphemeris]],
+    ionosphere_manager: KlobucharManager,
     max_iterations: int = 8,
 ) -> list[SppSolution]:
     solutions: list[SppSolution] = []
@@ -149,8 +150,9 @@ def single_point_positioning(
                 continue
 
             # Select the best ephemeris for this satellite
-            nav = select_ephemeris(nav_data, sat_id, sow)
-            if nav is None:
+            try:
+                nav = select_ephemeris(nav_data, sat_id, sow)
+            except ValueError:
                 continue
 
             # Compute satellite state using ephemeris module
@@ -160,6 +162,9 @@ def single_point_positioning(
             sat_pos, dtsv = state
             if not np.all(np.isfinite(sat_pos)) or not np.isfinite(dtsv):
                 continue
+            print(
+                f"  {sat_id} at {epoch.datetime.isoformat()}: pr={pr:.3f} m sat_pos={sat_pos} dtsv={dtsv} s"
+            )
             measurements.append((sat_id, sat_pos, dtsv, pr))
 
         if len(measurements) < 4:
@@ -181,7 +186,7 @@ def single_point_positioning(
         for _ in range(max_iterations):
             H_rows = []
             v_rows = []
-            for _, sat_pos, dtsv, pr in measurements:
+            for sat_id, sat_pos, dtsv, pr in measurements:
                 rho = np.linalg.norm(sat_pos - receiver_pos)
                 if rho <= 0 or not np.isfinite(rho):
                     continue
@@ -198,7 +203,34 @@ def single_point_positioning(
                 if not np.isfinite(tropo):
                     tropo = 0.0
 
-                predicted = rho + receiver_clock - CLIGHT * dtsv + tropo
+                iono = 0.0
+                iono_model = ionosphere_manager.get_model_for_time(epoch.datetime)
+                if iono_model is not None:
+                    enu = ecef_to_enu_matrix(receiver_llh[0], receiver_llh[1]) @ (
+                        sat_corr - receiver_pos
+                    )
+                    east, north, up = enu
+                    horiz = np.hypot(east, north)
+                    elev = np.arctan2(up, horiz)
+                    az = np.arctan2(east, north)
+                    if elev > 0:
+                        receiver_llh_rad = np.array(
+                            [
+                                np.radians(receiver_llh[0]),
+                                np.radians(receiver_llh[1]),
+                                receiver_llh[2],
+                            ]
+                        )
+                        iono_val = iono_model.calculate_delay(
+                            epoch.datetime, receiver_llh_rad, az, elev
+                        )
+                        if np.isfinite(iono_val):
+                            iono = iono_val
+                            print(
+                                f"  iono {sat_id} at {epoch.datetime.isoformat()}: {iono:.3f} m az={np.degrees(az):.1f} elev={np.degrees(elev):.1f} deg"
+                            )
+
+                predicted = rho + receiver_clock - CLIGHT * dtsv + tropo + iono
                 v = pr - predicted
                 if not np.isfinite(v):
                     continue
@@ -271,12 +303,27 @@ def main() -> int:
     with Path(args.signal_code_map).open("r", encoding="utf-8") as f:
         signal_code_map = json.load(f)
 
+    # Parse RINEX observation file and limit epochs if requested
     epochs = parse_rinex_observation_file(str(obs_path), signal_code_map)
     if args.max_epochs > 0:
         epochs = epochs[: args.max_epochs]
 
-    nav_data = read_rinex_nav(str(nav_path))
-    solutions = single_point_positioning(epochs, nav_data)
+    # Parse RINEX navigation file to read ephemeris data
+    nav_data, ion_params = read_rinex_nav(str(nav_path))
+
+    print(f"Ionosphere parameters from RINEX nav: {ion_params}")
+
+    ionosphere_manager = KlobucharManager()
+    if "ion_alpha" in ion_params and "ion_beta" in ion_params:
+        model = KlobucharModel(ion_params["ion_alpha"], ion_params["ion_beta"])
+
+        # Determine valid time (using the first epoch's time or a placeholder)
+        time_of_data = epochs[0].datetime if epochs else datetime.utcnow()
+        ionosphere_manager.add_model(time_of_data, model)
+
+    solutions = single_point_positioning(
+        epochs, nav_data, ionosphere_manager=ionosphere_manager
+    )
 
     for sol in solutions:
         lat, lon, h = sol.position_llh

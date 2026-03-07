@@ -1,5 +1,6 @@
 import numpy as np
 from datetime import datetime
+from typing import Optional
 
 from app.gnss.constants import CLIGHT
 from app.gnss.ephemeris import datetime_to_gps_week_seconds
@@ -122,3 +123,50 @@ class KlobucharModel:
 
         # Apply slant factor and convert to meters
         return CLIGHT * f * delay_sec
+
+
+class KlobucharManager:
+    """
+    Manager for storing and retrieving multiple Klobuchar models over time.
+    Provides methods to automatically select the most appropriate ionospheric
+    params for a given observation epoch.
+    """
+
+    def __init__(self):
+        self.models: dict[datetime, KlobucharModel] = {}
+
+    def add_model(self, time_of_data: datetime, model: KlobucharModel):
+        """
+        Add a Klobuchar model valid at or near the given time_of_data.
+
+        Args:
+            time_of_data: Timestamp when these parameters were broadcast or the start of their validity
+            model: Instance of KlobucharModel
+        """
+        self.models[time_of_data] = model
+
+    def get_model_for_time(self, obs_time: datetime) -> Optional[KlobucharModel]:
+        """
+        Finds the closest Klobuchar model preceding the observation time.
+        If no preceding model is found, returns the earliest available model.
+
+        Args:
+            obs_time: The time of the observation
+
+        Returns:
+            The best matching KlobucharModel, or None if no models are available.
+        """
+        if not self.models:
+            return None
+
+        # Try to find the latest model that was broadcast before or at obs_time
+        valid_times = [t for t in self.models.keys() if t <= obs_time]
+
+        if valid_times:
+            # Get the most recent one among the valid ones
+            best_time = max(valid_times)
+        else:
+            # If all models are strictly after obs_time, fallback to the earliest we have
+            best_time = min(self.models.keys())
+
+        return self.models[best_time]

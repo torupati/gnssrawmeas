@@ -204,7 +204,9 @@ class GPSEphemeris:
         return cls.from_dict(data)
 
 
-def read_rinex_nav(nav_file: str) -> Dict[str, List[GPSEphemeris]]:
+def read_rinex_nav(
+    nav_file: str,
+) -> tuple[Dict[str, List[GPSEphemeris]], Dict[str, list[float]]]:
     """
     Read RINEX navigation file
 
@@ -212,16 +214,40 @@ def read_rinex_nav(nav_file: str) -> Dict[str, List[GPSEphemeris]]:
         nav_file: Navigation file path
 
     Returns:
-        Dictionary of ephemeris lists keyed by satellite ID
+        Tuple of:
+        - Dictionary of ephemeris lists keyed by satellite ID
+        - Dictionary of extracted ionospheric parameters
     """
     ephemerides: Dict[str, List[GPSEphemeris]] = {}
+    ion_params: Dict[str, list[float]] = {}
 
     with open(nav_file, "r") as f:
         lines = f.readlines()
 
-    # Skip header
+    # Read header
     i = 0
     while i < len(lines) and "END OF HEADER" not in lines[i]:
+        line = lines[i]
+        # Check for IONOSPHERIC CORR
+        if "IONOSPHERIC CORR" in line:
+            if line.startswith("GPSA") or "ION ALPHA" in line:
+                try:
+                    alpha0 = float(line[5:17].replace("D", "E"))
+                    alpha1 = float(line[17:29].replace("D", "E"))
+                    alpha2 = float(line[29:41].replace("D", "E"))
+                    alpha3 = float(line[41:53].replace("D", "E"))
+                    ion_params["ion_alpha"] = [alpha0, alpha1, alpha2, alpha3]
+                except ValueError:
+                    pass
+            elif line.startswith("GPSB") or "ION BETA" in line:
+                try:
+                    beta0 = float(line[5:17].replace("D", "E"))
+                    beta1 = float(line[17:29].replace("D", "E"))
+                    beta2 = float(line[29:41].replace("D", "E"))
+                    beta3 = float(line[41:53].replace("D", "E"))
+                    ion_params["ion_beta"] = [beta0, beta1, beta2, beta3]
+                except ValueError:
+                    pass
         i += 1
     i += 1
 
@@ -310,7 +336,7 @@ def read_rinex_nav(nav_file: str) -> Dict[str, List[GPSEphemeris]]:
 
         i += 1
 
-    return ephemerides
+    return ephemerides, ion_params
 
 
 # -----------------------------------------
