@@ -55,6 +55,26 @@ def select_ephemeris(
 def tropospheric_delay(
     receiver_llh: np.ndarray, sat_pos: np.ndarray, recv_pos: np.ndarray
 ) -> float:
+    """
+    Calculate tropospheric delay correction for the signal path.
+
+    Estimates the delay of GNSS signals propagating through the troposphere
+    using a simplified model based on receiver altitude, elevation angle,
+    and standard atmospheric parameters.
+
+    Args:
+        receiver_llh: Receiver position in geodetic coordinates [lat, lon, h]
+                     (radians, radians, meters)
+        sat_pos: Satellite position in ECEF coordinates (meters)
+        recv_pos: Receiver position in ECEF coordinates (meters)
+
+    Returns:
+        Tropospheric delay in meters. Returns 0.0 if:
+        - Receiver position is invalid (norm < 1.0 m)
+        - Altitude is outside valid range (-1000 to 100000 m)
+        - Satellite elevation angle is below 5 degrees
+        - Atmospheric calculation would be invalid
+    """
     if np.linalg.norm(recv_pos) < 1.0:
         return 0.0
 
@@ -83,6 +103,22 @@ def tropospheric_delay(
 def apply_earth_rotation_correction(
     sat_pos: np.ndarray, travel_time: float
 ) -> np.ndarray:
+    """
+    Apply Earth rotation correction to satellite position.
+
+    Corrects the satellite position in ECEF coordinates to account for
+    Earth's rotation during signal travel time. This is necessary because
+    the satellite coordinates at transmission time must be rotated to match
+    the Earth's orientation at reception time.
+
+    Args:
+        sat_pos: Satellite position in ECEF coordinates at transmission time
+                (meters, 3-element array [x, y, z])
+        travel_time: Signal travel time from satellite to receiver (seconds)
+
+    Returns:
+        Corrected satellite position in ECEF coordinates (meters)
+    """
     theta = OMEGA_E * travel_time
     cos_t = np.cos(theta)
     sin_t = np.sin(theta)
