@@ -21,7 +21,11 @@ from app.gnss.ephemeris import (
     datetime_to_gps_week_seconds,
     OMEGA_E,
 )
-from app.gnss.satellite_signals import EpochObservations, parse_rinex_observation_file
+from app.gnss.satellite_signals import (
+    EpochObservations,
+    SatelliteObservation,
+    parse_rinex_observation_file,
+)
 from app.gnss.ionosphere import KlobucharManager, KlobucharModel
 
 logger = getLogger(__name__)
@@ -78,46 +82,175 @@ def apply_earth_rotation_correction(
     return rotation @ sat_pos
 
 
+def collect_measurements(
+    epoch: EpochObservations,
+    nav_data: dict[str, list[GPSEphemeris]],
+    sow: float,
+) -> list[tuple[str, np.ndarray, float, SatelliteObservation]]:
+    """
+    Collect valid GPS measurements for an epoch.
+
+    Iterates over satellites in the epoch, selects the best ephemeris,
+    and computes satellite position and clock bias for each valid observation.
+
+    Args:
+        epoch: Observation data for a single epoch.
+        nav_data: Broadcast ephemeris keyed by satellite ID.
+        sow: GPS seconds of week for the epoch.
+
+    Returns:
+        List of (sat_id, sat_pos_ecef, clock_bias_s, sat_obs) tuples.
+    """
+    measurements = []
+    for sat_id, sat_obs in epoch.iter_satellites():
+        if not sat_id.startswith("G"):
+            continue
+        if "L1" not in sat_obs.signals:
+            continue
+        pr = sat_obs.signals["L1"].pseudorange
+        if not np.isfinite(pr):
+            continue
+
+        try:
+            nav = select_ephemeris(nav_data, sat_id, sow)
+        except ValueError:
+            continue
+
+        try:
+            sat_pos, dtsv = compute_satellite_state(nav, epoch.datetime, pr)
+        except Exception as e:
+            logger.warning("Failed to compute satellite state for %s: %s", sat_id, e)
+            continue
+        if not np.all(np.isfinite(sat_pos)) or not np.isfinite(dtsv):
+            continue
+        logger.debug(
+            "  %s at %s: pr=%.3f m sat_pos=%s dtsv=%s s",
+            sat_id,
+            epoch.datetime.isoformat(),
+            pr,
+            sat_pos,
+            dtsv,
+        )
+        measurements.append((sat_id, sat_pos, dtsv, sat_obs))
+    return measurements
+
+
+def build_observation_matrix(
+    measurements: list[tuple[str, np.ndarray, float, SatelliteObservation]],
+    receiver_pos: np.ndarray,
+    receiver_clock: float,
+    epoch_dt: datetime,
+    ionosphere_manager: KlobucharManager,
+    elevation_mask_deg: float = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Build the design matrix H and residual vector v for least-squares positioning.
+
+    For each measurement, applies earth rotation correction, tropospheric delay,
+    and ionospheric delay to form the linearized observation equations.
+
+    Args:
+        measurements: List of (sat_id, sat_pos_ecef, clock_bias_s, sat_obs).
+        receiver_pos: Current receiver position estimate in ECEF (meters).
+        receiver_clock: Current receiver clock bias estimate (meters).
+        epoch_dt: Epoch datetime for ionospheric model lookup.
+        ionosphere_manager: Ionospheric correction manager.
+        elevation_mask_deg: Minimum satellite elevation angle in degrees.
+                           Satellites below this angle are excluded.
+
+    Returns:
+        Tuple of (H_mat, v_vec) where H_mat has shape (n, 4) and v_vec has shape (n,).
+        Returns empty arrays if fewer than 1 valid observation.
+    """
+    elev_mask_rad = np.radians(elevation_mask_deg)
+    H_rows = []
+    v_rows = []
+    for sat_id, sat_pos, dtsv, sat_obs in measurements:
+        pr = sat_obs.signals["L1"].pseudorange
+        rho = np.linalg.norm(sat_pos - receiver_pos)
+        if rho <= 0 or not np.isfinite(rho):
+            continue
+        travel_time = rho / CLIGHT
+        sat_corr = apply_earth_rotation_correction(sat_pos, travel_time)
+        if not np.all(np.isfinite(sat_corr)):
+            continue
+        rho = np.linalg.norm(sat_corr - receiver_pos)
+        if rho <= 0 or not np.isfinite(rho):
+            continue
+
+        receiver_llh = ecef_to_llh(receiver_pos)
+
+        enu = ecef_to_enu_matrix(receiver_llh[0], receiver_llh[1]) @ (
+            sat_corr - receiver_pos
+        )
+        east, north, up = enu
+        horiz = np.hypot(east, north)
+        elev = np.arctan2(up, horiz)
+        az = np.arctan2(east, north)
+
+        print(
+            f"  {sat_id} elev={np.degrees(elev):.1f} deg az={np.degrees(az):.1f} deg {elevation_mask_deg}"
+        )
+        if elevation_mask_deg > 0 and elev < elev_mask_rad:
+            continue
+        tropo = tropospheric_delay(receiver_llh, sat_corr, receiver_pos)
+        if not np.isfinite(tropo):
+            tropo = 0.0
+
+        iono = 0.0
+        iono_model = ionosphere_manager.get_model_for_time(epoch_dt)
+        if iono_model is not None:
+            if elev > 0 and iono_model is not None:
+                receiver_llh_rad = np.array(
+                    [
+                        np.radians(receiver_llh[0]),
+                        np.radians(receiver_llh[1]),
+                        receiver_llh[2],
+                    ]
+                )
+                iono_val = iono_model.calculate_delay(
+                    epoch_dt, receiver_llh_rad, az, elev
+                )
+                if np.isfinite(iono_val):
+                    iono = iono_val
+                    logger.debug(
+                        "  iono %s at %s: %.3f m az=%.1f elev=%.1f deg",
+                        sat_id,
+                        epoch_dt.isoformat(),
+                        iono,
+                        np.degrees(az),
+                        np.degrees(elev),
+                    )
+
+        predicted = rho + receiver_clock - CLIGHT * dtsv + tropo + iono
+        v = pr - predicted
+        if not np.isfinite(v):
+            continue
+        H = (receiver_pos - sat_corr) / rho
+        if not np.all(np.isfinite(H)):
+            continue
+        H_rows.append([H[0], H[1], H[2], 1.0])
+        v_rows.append(v)
+
+    if not H_rows:
+        return np.empty((0, 4)), np.empty(0)
+    return np.array(H_rows), np.array(v_rows)
+
+
 def single_point_positioning(
     epochs: list[EpochObservations],
     nav_data: dict[str, list[GPSEphemeris]],
     ionosphere_manager: KlobucharManager,
     max_iterations: int = 8,
+    elevation_mask_deg: float = 20.0,
 ) -> list[SppSolution]:
     solutions: list[SppSolution] = []
     receiver_pos = np.zeros(3)
     receiver_clock = 0.0
 
     for epoch in epochs:
-        measurements = []
         _, sow = datetime_to_gps_week_seconds(epoch.datetime)
-
-        for sat_id, sat_obs in epoch.iter_satellites():
-            if not sat_id.startswith("G"):
-                continue
-            if "L1" not in sat_obs.signals:
-                continue
-            pr = sat_obs.signals["L1"].pseudorange
-            if not np.isfinite(pr):
-                continue
-
-            # Select the best ephemeris for this satellite
-            try:
-                nav = select_ephemeris(nav_data, sat_id, sow)
-            except ValueError:
-                continue
-
-            # Compute satellite state using ephemeris module
-            state = compute_satellite_state(nav, epoch.datetime, pr)
-            if state is None:
-                continue
-            sat_pos, dtsv = state
-            if not np.all(np.isfinite(sat_pos)) or not np.isfinite(dtsv):
-                continue
-            print(
-                f"  {sat_id} at {epoch.datetime.isoformat()}: pr={pr:.3f} m sat_pos={sat_pos} dtsv={dtsv} s"
-            )
-            measurements.append((sat_id, sat_pos, dtsv, pr))
+        measurements = collect_measurements(epoch, nav_data, sow)
 
         if len(measurements) < 4:
             solutions.append(
@@ -135,68 +268,20 @@ def single_point_positioning(
         last_H = None
         last_v = None
         last_dx = None
-        for _ in range(max_iterations):
-            H_rows = []
-            v_rows = []
-            for sat_id, sat_pos, dtsv, pr in measurements:
-                rho = np.linalg.norm(sat_pos - receiver_pos)
-                if rho <= 0 or not np.isfinite(rho):
-                    continue
-                travel_time = rho / CLIGHT
-                sat_corr = apply_earth_rotation_correction(sat_pos, travel_time)
-                if not np.all(np.isfinite(sat_corr)):
-                    continue
-                rho = np.linalg.norm(sat_corr - receiver_pos)
-                if rho <= 0 or not np.isfinite(rho):
-                    continue
+        for iteration in range(max_iterations):
+            mask = elevation_mask_deg if iteration > 0 else 0.0
+            H_mat, v_vec = build_observation_matrix(
+                measurements,
+                receiver_pos,
+                receiver_clock,
+                epoch.datetime,
+                ionosphere_manager,
+                elevation_mask_deg=mask,
+            )
 
-                receiver_llh = ecef_to_llh(receiver_pos)
-                tropo = tropospheric_delay(receiver_llh, sat_corr, receiver_pos)
-                if not np.isfinite(tropo):
-                    tropo = 0.0
-
-                iono = 0.0
-                iono_model = ionosphere_manager.get_model_for_time(epoch.datetime)
-                if iono_model is not None:
-                    enu = ecef_to_enu_matrix(receiver_llh[0], receiver_llh[1]) @ (
-                        sat_corr - receiver_pos
-                    )
-                    east, north, up = enu
-                    horiz = np.hypot(east, north)
-                    elev = np.arctan2(up, horiz)
-                    az = np.arctan2(east, north)
-                    if elev > 0:
-                        receiver_llh_rad = np.array(
-                            [
-                                np.radians(receiver_llh[0]),
-                                np.radians(receiver_llh[1]),
-                                receiver_llh[2],
-                            ]
-                        )
-                        iono_val = iono_model.calculate_delay(
-                            epoch.datetime, receiver_llh_rad, az, elev
-                        )
-                        if np.isfinite(iono_val):
-                            iono = iono_val
-                            print(
-                                f"  iono {sat_id} at {epoch.datetime.isoformat()}: {iono:.3f} m az={np.degrees(az):.1f} elev={np.degrees(elev):.1f} deg"
-                            )
-
-                predicted = rho + receiver_clock - CLIGHT * dtsv + tropo + iono
-                v = pr - predicted
-                if not np.isfinite(v):
-                    continue
-                H = (receiver_pos - sat_corr) / rho
-                if not np.all(np.isfinite(H)):
-                    continue
-                H_rows.append([H[0], H[1], H[2], 1.0])
-                v_rows.append(v)
-
-            if len(H_rows) < 4:
+            if H_mat.shape[0] < 4:
                 break
 
-            H_mat = np.array(H_rows)
-            v_vec = np.array(v_rows)
             dx, *_ = np.linalg.lstsq(H_mat, v_vec, rcond=None)
             last_H = H_mat
             last_v = v_vec
@@ -218,7 +303,7 @@ def single_point_positioning(
                 position_ecef=receiver_pos.copy(),
                 position_llh=ecef_to_llh(receiver_pos),
                 clock_bias_m=receiver_clock,
-                num_sats=len(measurements),
+                num_sats=last_H.shape[0] if last_H is not None else 0,
                 residuals=residuals,
             )
         )
