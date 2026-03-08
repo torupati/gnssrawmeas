@@ -367,6 +367,22 @@ def broadcast_ecef_and_clock(
     nav: GPSEphemeris,
     sow: float,
 ) -> tuple[np.ndarray, float]:
+    """
+    Compute satellite ECEF position and clock bias from broadcast ephemeris.
+
+    Evaluates the GPS broadcast ephemeris orbital parameters at the given
+    time to produce the satellite position in WGS84 ECEF coordinates and
+    the satellite clock correction (including relativistic effects).
+
+    Args:
+        nav: GPS broadcast ephemeris containing orbital and clock parameters.
+        sow: Transmission time as GPS seconds of week.
+
+    Returns:
+        Tuple of:
+        - Satellite position in ECEF coordinates [x, y, z] (meters).
+        - Satellite clock bias (seconds), including relativistic correction.
+    """
     tk = _wrap_time_diff(sow - nav.toe)
     A = nav.sqrtA**2
     n0 = np.sqrt(GM_WGS84 / A**3)
@@ -374,7 +390,7 @@ def broadcast_ecef_and_clock(
     M = nav.M0 + n * tk
 
     E = solve_kepler(M, nav.e)
-    print("Eccentric anomaly E:", E)
+    # print("Eccentric anomaly E:", E)
     v = np.arctan2(np.sqrt(1 - nav.e**2) * np.sin(E), np.cos(E) - nav.e)
     phi = v + nav.omega
 
