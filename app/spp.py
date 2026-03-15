@@ -196,8 +196,12 @@ def build_observation_matrix(
         elev = np.arctan2(up, horiz)
         az = np.arctan2(east, north)
 
-        print(
-            f"  {sat_id} elev={np.degrees(elev):.1f} deg az={np.degrees(az):.1f} deg {elevation_mask_deg}"
+        logger.debug(
+            "  %s elev=%.1f deg az=%.1f deg %s",
+            sat_id,
+            np.degrees(elev),
+            np.degrees(az),
+            elevation_mask_deg,
         )
         if elevation_mask_deg > 0 and elev < elev_mask_rad:
             continue
