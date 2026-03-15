@@ -9,10 +9,8 @@ The database schema is normalized to efficiently store observation data with
 minimal redundancy while maintaining query performance.
 """
 
-from __future__ import annotations
-
+import datetime as dt
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 
@@ -47,7 +45,7 @@ class Epoch(Base):
     __tablename__ = "epochs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    datetime: Mapped[datetime] = mapped_column(unique=True, index=True)
+    datetime: Mapped[dt.datetime] = mapped_column(unique=True, index=True)
 
     # Relationships
     satellites: Mapped[list["Satellite"]] = relationship(
@@ -362,8 +360,8 @@ class GnssDatabase:
 
     def load_epoch_observations(
         self,
-        start_datetime: Optional[datetime] = None,
-        end_datetime: Optional[datetime] = None,
+        start_datetime: Optional[dt.datetime] = None,
+        end_datetime: Optional[dt.datetime] = None,
         session: Optional[Session] = None,
     ) -> List[EpochObservations]:
         """Load EpochObservations from the database.
@@ -478,7 +476,7 @@ class GnssDatabase:
     def save_satellite_positions(
         self,
         positions: dict[str, dict],
-        epoch_datetime: datetime,
+        epoch_datetime: dt.datetime,
         session: Optional[Session] = None,
     ) -> None:
         """Save satellite positions for a specific epoch.
@@ -544,7 +542,7 @@ class GnssDatabase:
     def save_spp_solution(
         self,
         solution_data: dict,
-        epoch_datetime: datetime,
+        epoch_datetime: dt.datetime,
         session: Optional[Session] = None,
     ) -> None:
         """Save SPP solution for a specific epoch.
