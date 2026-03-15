@@ -1,138 +1,140 @@
 # GNSS Database Module
 
-このドキュメントは、GNSS観測データ、衛星位置、単独測位結果をSQLiteデータベースに保存・読み込みするためのデータベースモジュールについて説明します。
+This document describes the database module for storing and loading GNSS observation data, satellite positions, and single point positioning (SPP) solutions in an SQLite database.
 
-## 概要
+## Overview
 
-`app.gnss.database` モジュールは、以下のデータを効率的にSQLiteデータベースに保存する機能を提供します：
+The `app.gnss.database` module provides functionality to efficiently store the following data in an SQLite database:
 
-1. **観測値 (EpochObservations)**: 各エポックのGNSS生観測データ
-2. **衛星位置 (SatellitePosition)**: 計算された衛星のECEF座標
-3. **単独測位結果 (SPP Solutions)**: Single Point Positioningの計算結果
+1. **Observations (EpochObservations)**: Raw GNSS observation data for each epoch
+2. **Satellite Positions (SatellitePosition)**: Computed satellite ECEF coordinates
+3. **SPP Solutions (SppSolution)**: Single Point Positioning results
 
-## データベース構造
+## Database Schema
 
-データベースは正規化されたスキーマを使用し、冗長性を最小限に抑えながら効率的なクエリパフォーマンスを維持します。
+The database uses a normalized schema to minimize redundancy while maintaining efficient query performance.
 
-### テーブル構成
+### Table Structure
 
-#### 1. `epochs` テーブル
-観測エポック（タイムスタンプ）を格納します。
+#### 1. `epochs` Table
+Stores observation epochs (timestamps).
 
-| カラム | 型 | 説明 |
-|--------|------|------|
-| id | INTEGER | 主キー（自動増分） |
-| datetime | DATETIME | 観測時刻（UTC）、ユニーク |
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key (auto-increment) |
+| datetime | DATETIME | Observation time (UTC), unique |
 
-#### 2. `satellites` テーブル
-特定のエポックにおける各衛星の観測データを格納します。
+#### 2. `satellites` Table
+Stores observation data for each satellite at a specific epoch.
 
-| カラム | 型 | 説明 |
-|--------|------|------|
-| id | INTEGER | 主キー（自動増分） |
-| epoch_id | INTEGER | エポックへの外部キー |
-| satellite_id | STRING | 衛星ID（例: "G01", "E05"） |
-| prn | INTEGER | PRN番号 |
-| system | STRING | 衛星システム（"GPS", "QZSS", "Galileo", "GLONASS"） |
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key (auto-increment) |
+| epoch_id | INTEGER | Foreign key to epochs |
+| satellite_id | STRING | Satellite ID (e.g., "G01", "E05") |
+| prn | INTEGER | PRN number |
+| system | STRING | Satellite system ("GPS", "QZSS", "Galileo", "GLONASS") |
 
-#### 3. `signals` テーブル
-各衛星・周波数帯の信号観測値を格納します。
+#### 3. `signals` Table
+Stores signal observations for each satellite and frequency band.
 
-| カラム | 型 | 説明 |
-|--------|------|------|
-| id | INTEGER | 主キー（自動増分） |
-| satellite_id | INTEGER | 衛星への外部キー |
-| band | STRING | 周波数帯（例: "L1", "L2", "E1"） |
-| pseudorange | FLOAT | 擬似距離（メートル） |
-| carrier_phase | FLOAT | 搬送波位相（サイクル） |
-| doppler | FLOAT | ドップラー（Hz） |
-| snr | FLOAT | 信号対雑音比（dB-Hz） |
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key (auto-increment) |
+| satellite_id | INTEGER | Foreign key to satellites |
+| band | STRING | Frequency band (e.g., "L1", "L2", "E1") |
+| pseudorange | FLOAT | Pseudorange (meters) |
+| carrier_phase | FLOAT | Carrier phase (cycles) |
+| doppler | FLOAT | Doppler (Hz) |
+| snr | FLOAT | Signal-to-noise ratio (dB-Hz) |
 
-#### 4. `ambiguities` テーブル
-二周波の組み合わせによるアンビギュイティ観測値を格納します。
+#### 4. `ambiguities` Table
+Stores ambiguity observations for dual-frequency combinations.
 
-| カラム | 型 | 説明 |
-|--------|------|------|
-| id | INTEGER | 主キー（自動増分） |
-| satellite_id | INTEGER | 衛星への外部キー |
-| combination | STRING | 周波数の組み合わせ（例: "L1_L2"） |
-| widelane | FLOAT | ワイドレーンアンビギュイティ（サイクル） |
-| ionofree | FLOAT | 電離層フリーアンビギュイティ（サイクル） |
-| geofree | FLOAT | ジオメトリフリーアンビギュイティ（サイクル） |
-| multipath | FLOAT | マルチパス（メートル） |
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key (auto-increment) |
+| satellite_id | INTEGER | Foreign key to satellites |
+| combination | STRING | Frequency combination (e.g., "L1_L2") |
+| widelane | FLOAT | Widelane ambiguity (cycles) |
+| ionofree | FLOAT | Ionosphere-free ambiguity (cycles) |
+| geofree | FLOAT | Geometry-free ambiguity (cycles) |
+| multipath | FLOAT | Multipath ionosphere-free indicator (meters) |
 
-#### 5. `satellite_positions` テーブル
-計算された衛星位置（ECEF座標）を格納します。
+#### 5. `satellite_positions` Table
+Stores computed satellite positions in ECEF coordinates.
 
-| カラム | 型 | 説明 |
-|--------|------|------|
-| id | INTEGER | 主キー（自動増分） |
-| satellite_id | INTEGER | 衛星への外部キー |
-| x | FLOAT | ECEF X座標（メートル） |
-| y | FLOAT | ECEF Y座標（メートル） |
-| z | FLOAT | ECEF Z座標（メートル） |
-| clock_bias | FLOAT | 衛星時計バイアス（秒） |
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key (auto-increment) |
+| satellite_id | INTEGER | Foreign key to satellites |
+| datetime | DATETIME | Observation time (UTC) |
+| nano_second | INTEGER | Sub-second value in nanoseconds |
+| x | FLOAT | ECEF X coordinate (meters) |
+| y | FLOAT | ECEF Y coordinate (meters) |
+| z | FLOAT | ECEF Z coordinate (meters) |
+| clock_bias | FLOAT | Satellite clock bias (seconds) |
 
-#### 6. `spp_solutions` テーブル
-単独測位の計算結果を格納します。
+#### 6. `spp_solutions` Table
+Stores single point positioning results.
 
-| カラム | 型 | 説明 |
-|--------|------|------|
-| id | INTEGER | 主キー（自動増分） |
-| epoch_id | INTEGER | エポックへの外部キー |
-| x, y, z | FLOAT | ECEF座標（メートル） |
-| latitude | FLOAT | 緯度（度） |
-| longitude | FLOAT | 経度（度） |
-| height | FLOAT | 楕円体高（メートル） |
-| clock_bias_m | FLOAT | 受信機時計バイアス（メートル） |
-| num_satellites | INTEGER | 使用衛星数 |
-| residuals | TEXT | 残差のJSON配列 |
+| Column | Type | Description |
+|--------|------|-------------|
+| id | INTEGER | Primary key (auto-increment) |
+| epoch_id | INTEGER | Foreign key to epochs |
+| x, y, z | FLOAT | ECEF coordinates (meters) |
+| latitude | FLOAT | Latitude (degrees) |
+| longitude | FLOAT | Longitude (degrees) |
+| height | FLOAT | Ellipsoidal height (meters) |
+| clock_bias_m | FLOAT | Receiver clock bias (meters) |
+| num_satellites | INTEGER | Number of satellites used |
+| residuals | TEXT | JSON array of residuals |
 
-## 使用方法
+## Usage
 
-### 基本的な使い方
+### Basic Usage
 
 ```python
 from pathlib import Path
 from app.gnss.database import GnssDatabase
 from app.gnss.satellite_signals import parse_rinex_observation_file
 
-# データベースの初期化
+# Initialize database
 db = GnssDatabase("gnss_data.db")
 
-# RINEXファイルの解析
-signal_code_map = {...}  # 信号コードマップを読み込む
+# Parse RINEX file
+signal_code_map = {...}  # Load signal code map
 epochs = parse_rinex_observation_file("observation.rnx", signal_code_map)
 
-# データベースに保存
+# Save to database
 db.save_epoch_observations(epochs)
 
-# データベースから読み込み
+# Load from database
 loaded_epochs = db.load_epoch_observations()
 
-# 統計情報の取得
+# Get statistics
 stats = db.get_statistics()
-print(f"エポック数: {stats['num_epochs']}")
-print(f"衛星数: {stats['num_satellites']}")
+print(f"Number of epochs: {stats['num_epochs']}")
+print(f"Number of satellites: {stats['num_satellites']}")
 ```
 
-### 時刻フィルタを使った読み込み
+### Loading with Time Filter
 
 ```python
 from datetime import datetime, timezone
 
-# 開始時刻と終了時刻を指定
+# Specify start and end times
 start_dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
 end_dt = datetime(2024, 1, 15, 13, 0, 0, tzinfo=timezone.utc)
 
-# 指定期間のデータを読み込み
+# Load data for the specified period
 epochs = db.load_epoch_observations(
     start_datetime=start_dt,
     end_datetime=end_dt
 )
 ```
 
-### 衛星位置の保存
+### Saving Satellite Positions
 
 ```python
 from datetime import datetime, timezone
@@ -141,12 +143,16 @@ epoch_dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc)
 
 positions = {
     "G01": {
+        "datetime": epoch_dt,
+        "nano_second": 500000000,
         "x": 12345678.90,
         "y": 23456789.01,
         "z": 34567890.12,
         "clock_bias": 0.000123
     },
     "E05": {
+        "datetime": epoch_dt,
+        "nano_second": 500000000,
         "x": 98765432.10,
         "y": 87654321.09,
         "z": 76543210.98,
@@ -157,7 +163,7 @@ positions = {
 db.save_satellite_positions(positions, epoch_dt)
 ```
 
-### SPP解の保存
+### Saving SPP Solutions
 
 ```python
 import numpy as np
@@ -176,16 +182,16 @@ solution_data = {
 db.save_spp_solution(solution_data, epoch_dt)
 ```
 
-### データベースのクリア
+### Clearing the Database
 
 ```python
-# 全データを削除
+# Delete all data
 db.clear_database()
 ```
 
-## 実用例
+## Practical Examples
 
-### 例1: RINEXファイルからデータベースへの変換
+### Example 1: Converting a RINEX File to Database
 
 ```python
 import json
@@ -193,61 +199,61 @@ from pathlib import Path
 from app.gnss.database import GnssDatabase
 from app.gnss.satellite_signals import parse_rinex_observation_file
 
-# 信号コードマップの読み込み
+# Load signal code map
 with open("app/.signal_code_map.json", "r") as f:
     signal_code_map = json.load(f)
 
-# RINEXファイルの解析
+# Parse RINEX file
 epochs = parse_rinex_observation_file("data/observation.rnx", signal_code_map)
 
-# データベースに保存
+# Save to database
 db = GnssDatabase("output/gnss_data.db")
 db.save_epoch_observations(epochs)
 
-print(f"保存完了: {len(epochs)} エポック")
+print(f"Saved {len(epochs)} epochs")
 ```
 
-### 例2: データベースからの読み込みと処理
+### Example 2: Loading and Processing Data from Database
 
 ```python
 from app.gnss.database import GnssDatabase
 
-# データベースの読み込み
+# Open database
 db = GnssDatabase("output/gnss_data.db")
 
-# 全エポックを読み込み
+# Load all epochs
 epochs = db.load_epoch_observations()
 
-# 各エポックの処理
+# Process each epoch
 for epoch in epochs:
-    print(f"時刻: {epoch.datetime}")
-    print(f"  GPS衛星数: {len(epoch.satellites_gps)}")
-    print(f"  Galileo衛星数: {len(epoch.satellites_galileo)}")
+    print(f"Time: {epoch.datetime}")
+    print(f"  GPS satellites: {len(epoch.satellites_gps)}")
+    print(f"  Galileo satellites: {len(epoch.satellites_galileo)}")
 
-    # 各衛星の処理
+    # Process each satellite
     for sat_id, sat_obs in epoch.iter_satellites():
         if "L1" in sat_obs.signals:
             signal = sat_obs.signals["L1"]
             print(f"    {sat_id}: PR={signal.pseudorange:.3f} m, SNR={signal.snr:.1f} dB-Hz")
 ```
 
-### 例3: SPP計算結果の保存
+### Example 3: Saving SPP Computation Results
 
 ```python
 from app.gnss.database import GnssDatabase
 from app.spp import parse_rinex_navigation_file, single_point_positioning
 
-# データベースから観測値を読み込み
+# Load observations from database
 db = GnssDatabase("gnss_data.db")
 epochs = db.load_epoch_observations()
 
-# 航法メッセージの読み込み
+# Load navigation message
 nav_data = parse_rinex_navigation_file("navigation.rnx")
 
-# SPP計算
+# Compute SPP
 solutions = single_point_positioning(epochs, nav_data)
 
-# 結果をデータベースに保存
+# Save results to database
 for sol in solutions:
     solution_data = {
         "position_ecef": sol.position_ecef,

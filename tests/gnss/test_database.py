@@ -235,12 +235,16 @@ def test_save_satellite_positions(temp_db, sample_epoch_observations):
 
     positions = {
         "G01": {
+            "datetime": sample_epoch_observations.datetime,
+            "nano_second": 500000000,
             "x": 1234567.89,
             "y": 2345678.90,
             "z": 3456789.01,
             "clock_bias": 0.000123,
         },
         "E05": {
+            "datetime": sample_epoch_observations.datetime,
+            "nano_second": 250000000,
             "x": 9876543.21,
             "y": 8765432.10,
             "z": 7654321.09,

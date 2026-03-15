@@ -154,6 +154,10 @@ class SatellitePosition(Base):
     satellite_id: Mapped[int] = mapped_column(
         ForeignKey("satellites.id"), unique=True, index=True
     )
+    datetime: Mapped[dt.datetime] = mapped_column(index=True)  # Observation time (UTC)
+    nano_second: Mapped[int] = mapped_column(
+        default=0
+    )  # Sub-second value in nanoseconds
     x: Mapped[float] = mapped_column()  # ECEF X coordinate in meters
     y: Mapped[float] = mapped_column()  # ECEF Y coordinate in meters
     z: Mapped[float] = mapped_column()  # ECEF Z coordinate in meters
@@ -483,7 +487,8 @@ class GnssDatabase:
 
         Args:
             positions: Dictionary mapping satellite_id to position dict with keys:
-                       'x', 'y', 'z', 'clock_bias' (optional)
+                       'x', 'y', 'z', 'clock_bias' (optional),
+                       'datetime' (datetime), 'nano_second' (int, optional)
             epoch_datetime: Datetime of the epoch
             session: Optional existing session (if None, creates new one)
         """
@@ -516,6 +521,8 @@ class GnssDatabase:
 
                 if existing_pos:
                     # Update existing position
+                    existing_pos.datetime = pos_data.get("datetime", epoch_datetime)
+                    existing_pos.nano_second = pos_data.get("nano_second", 0)
                     existing_pos.x = pos_data["x"]
                     existing_pos.y = pos_data["y"]
                     existing_pos.z = pos_data["z"]
@@ -524,6 +531,8 @@ class GnssDatabase:
                     # Create new position
                     sat_pos = SatellitePosition(
                         satellite_id=satellite.id,
+                        datetime=pos_data.get("datetime", epoch_datetime),
+                        nano_second=pos_data.get("nano_second", 0),
                         x=pos_data["x"],
                         y=pos_data["y"],
                         z=pos_data["z"],
