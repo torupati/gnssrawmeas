@@ -358,7 +358,7 @@ def main() -> int:
     # Parse RINEX navigation file to read ephemeris data
     nav_data, ion_params = read_rinex_nav(str(nav_path))
 
-    print(f"Ionosphere parameters from RINEX nav: {ion_params}")
+    logger.info("Ionosphere parameters from RINEX nav: %s", ion_params)
 
     ionosphere_manager = KlobucharManager()
     if "ion_alpha" in ion_params and "ion_beta" in ion_params:
