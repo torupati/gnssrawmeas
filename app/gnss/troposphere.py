@@ -23,7 +23,7 @@ def tropospheric_delay(
 
     Args:
         receiver_llh: Receiver position in geodetic coordinates [lat, lon, h]
-                     (radians, radians, meters)
+                     (degrees, degrees, meters)
         sat_pos: Satellite position in ECEF coordinates (meters)
         recv_pos: Receiver position in ECEF coordinates (meters)
 
