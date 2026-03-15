@@ -206,7 +206,7 @@ class GPSEphemeris:
 
 def read_rinex_nav(
     nav_file: str,
-) -> tuple[Dict[str, List[GPSEphemeris]], Dict[str, list[float]]]:
+) -> Dict[str, List[GPSEphemeris]]:
     """
     Read RINEX navigation file
 
@@ -214,9 +214,7 @@ def read_rinex_nav(
         nav_file: Navigation file path
 
     Returns:
-        Tuple of:
-        - Dictionary of ephemeris lists keyed by satellite ID
-        - Dictionary of extracted ionospheric parameters
+        Dictionary of ephemeris lists keyed by satellite ID.
     """
     ephemerides: Dict[str, List[GPSEphemeris]] = {}
     ion_params: Dict[str, list[float]] = {}
