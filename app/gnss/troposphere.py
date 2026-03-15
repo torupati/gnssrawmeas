@@ -48,7 +48,7 @@ def tropospheric_delay(
         return 0.0
 
     base = 1 - 2.2557e-5 * h
-    logger.debug(f"Base: {base}, Elev: {np.degrees(elev):.2f} deg")
+    logger.debug("Base: %s, Elev: %.2f deg", base, np.degrees(elev))
     if base <= 0:
         return 0.0
     pressure = 1013.25 * (base**5.2568)
