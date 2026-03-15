@@ -14,7 +14,6 @@ Usage:
 
 import argparse
 import json
-from datetime import datetime
 from logging import getLogger, basicConfig, INFO
 from pathlib import Path
 
