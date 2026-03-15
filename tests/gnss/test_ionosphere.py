@@ -33,7 +33,7 @@ def test_klobuchar_model_delay():
     )
 
     # Check results
-    assert isinstance(delay_m, float)
+    assert isinstance(delay_m, (float, np.floating))
 
     # Typical ionospheric delays at L1 frequency fall between 0 and ~30 meters.
     # The exact value depends on the local time and geometry.
