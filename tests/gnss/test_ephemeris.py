@@ -406,7 +406,7 @@ class TestReadRinexNav:
     def test_read_existing_file(self):
         """Test reading a real RINEX nav file"""
         nav_file = str(NAV_FILE)
-        ephemeris_dict = read_rinex_nav(nav_file)
+        ephemeris_dict, ion_params = read_rinex_nav(nav_file)
 
         assert isinstance(ephemeris_dict, dict)
         assert len(ephemeris_dict) > 0
@@ -423,7 +423,7 @@ class TestReadRinexNav:
     def test_ephemeris_attributes(self):
         """Test that read ephemeris has all required attributes"""
         nav_file = str(NAV_FILE)
-        ephemeris_dict = read_rinex_nav(nav_file)
+        ephemeris_dict, _ion_params = read_rinex_nav(nav_file)
 
         if ephemeris_dict:
             # Get first ephemeris list and first item
