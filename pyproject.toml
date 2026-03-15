@@ -37,7 +37,7 @@ dev = [
 
 [tool.mypy]
 # Target Python version per project
-python_version = "3.9"
+python_version = "3.10"
 # Check only our package by default
 packages = ["app"]
 # Exclude misc utilities from CI type checking

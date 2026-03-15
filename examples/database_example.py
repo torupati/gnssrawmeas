@@ -23,6 +23,7 @@ from app.gnss.satellite_signals import parse_rinex_observation_file
 # Import SPP functionality if available
 try:
     from app.spp import parse_rinex_navigation_file, single_point_positioning
+
     SPP_AVAILABLE = True
 except ImportError:
     SPP_AVAILABLE = False
@@ -155,16 +156,36 @@ def main() -> int:
                 h_vals = [s.position_llh[2] for s in valid_sols]
 
                 logger.info("SPP Solution Statistics:")
-                logger.info("  Valid solutions: %d / %d", len(valid_sols), len(solutions))
-                logger.info("  Latitude:  mean=%.7f°, std=%.7f°",
-                           sum(lat_vals) / len(lat_vals),
-                           (sum((x - sum(lat_vals) / len(lat_vals))**2 for x in lat_vals) / len(lat_vals))**0.5)
-                logger.info("  Longitude: mean=%.7f°, std=%.7f°",
-                           sum(lon_vals) / len(lon_vals),
-                           (sum((x - sum(lon_vals) / len(lon_vals))**2 for x in lon_vals) / len(lon_vals))**0.5)
-                logger.info("  Height:    mean=%.3f m, std=%.3f m",
-                           sum(h_vals) / len(h_vals),
-                           (sum((x - sum(h_vals) / len(h_vals))**2 for x in h_vals) / len(h_vals))**0.5)
+                logger.info(
+                    "  Valid solutions: %d / %d", len(valid_sols), len(solutions)
+                )
+                logger.info(
+                    "  Latitude:  mean=%.7f°, std=%.7f°",
+                    sum(lat_vals) / len(lat_vals),
+                    (
+                        sum((x - sum(lat_vals) / len(lat_vals)) ** 2 for x in lat_vals)
+                        / len(lat_vals)
+                    )
+                    ** 0.5,
+                )
+                logger.info(
+                    "  Longitude: mean=%.7f°, std=%.7f°",
+                    sum(lon_vals) / len(lon_vals),
+                    (
+                        sum((x - sum(lon_vals) / len(lon_vals)) ** 2 for x in lon_vals)
+                        / len(lon_vals)
+                    )
+                    ** 0.5,
+                )
+                logger.info(
+                    "  Height:    mean=%.3f m, std=%.3f m",
+                    sum(h_vals) / len(h_vals),
+                    (
+                        sum((x - sum(h_vals) / len(h_vals)) ** 2 for x in h_vals)
+                        / len(h_vals)
+                    )
+                    ** 0.5,
+                )
 
     # Show final statistics
     logger.info("Final database statistics:")
@@ -181,8 +202,12 @@ def main() -> int:
     if loaded_epochs:
         logger.info("Successfully loaded first epoch: %s", loaded_epochs[0].datetime)
         logger.info("  GPS satellites: %d", len(loaded_epochs[0].satellites_gps))
-        logger.info("  Galileo satellites: %d", len(loaded_epochs[0].satellites_galileo))
-        logger.info("  GLONASS satellites: %d", len(loaded_epochs[0].satellites_glonass))
+        logger.info(
+            "  Galileo satellites: %d", len(loaded_epochs[0].satellites_galileo)
+        )
+        logger.info(
+            "  GLONASS satellites: %d", len(loaded_epochs[0].satellites_glonass)
+        )
         logger.info("  QZSS satellites: %d", len(loaded_epochs[0].satellites_qzss))
 
         # Show details of first satellite

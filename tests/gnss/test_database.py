@@ -99,8 +99,8 @@ def test_database_creation(temp_db):
     """Test that database is created successfully."""
     assert temp_db.db_path.exists()
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 0
-    assert stats['num_satellites'] == 0
+    assert stats["num_epochs"] == 0
+    assert stats["num_satellites"] == 0
 
 
 def test_save_single_epoch(temp_db, sample_epoch_observations):
@@ -108,10 +108,10 @@ def test_save_single_epoch(temp_db, sample_epoch_observations):
     temp_db.save_epoch_observations([sample_epoch_observations])
 
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 1
-    assert stats['num_satellites'] == 2  # 1 GPS + 1 Galileo
-    assert stats['num_signals'] == 4  # 2 per satellite
-    assert stats['num_ambiguities'] == 2  # 1 per satellite
+    assert stats["num_epochs"] == 1
+    assert stats["num_satellites"] == 2  # 1 GPS + 1 Galileo
+    assert stats["num_signals"] == 4  # 2 per satellite
+    assert stats["num_ambiguities"] == 2  # 1 per satellite
 
 
 def test_save_and_load_epoch(temp_db, sample_epoch_observations):
@@ -123,7 +123,10 @@ def test_save_and_load_epoch(temp_db, sample_epoch_observations):
 
     loaded_epoch = loaded_epochs[0]
     # SQLite doesn't preserve timezone info, so compare without timezone
-    assert loaded_epoch.datetime.replace(tzinfo=timezone.utc) == sample_epoch_observations.datetime
+    assert (
+        loaded_epoch.datetime.replace(tzinfo=timezone.utc)
+        == sample_epoch_observations.datetime
+    )
     assert len(loaded_epoch.satellites_gps) == 1
     assert len(loaded_epoch.satellites_galileo) == 1
 
@@ -178,8 +181,8 @@ def test_save_multiple_epochs(temp_db):
     temp_db.save_epoch_observations(epochs)
 
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 5
-    assert stats['num_satellites'] == 5
+    assert stats["num_epochs"] == 5
+    assert stats["num_satellites"] == 5
 
     # Load and verify
     loaded_epochs = temp_db.load_epoch_observations()
@@ -220,7 +223,9 @@ def test_load_with_time_filter(temp_db):
     # Load with both filters
     start_dt = datetime(2024, 1, 15, 12, 0, 2, tzinfo=timezone.utc)
     end_dt = datetime(2024, 1, 15, 12, 0, 7, tzinfo=timezone.utc)
-    loaded = temp_db.load_epoch_observations(start_datetime=start_dt, end_datetime=end_dt)
+    loaded = temp_db.load_epoch_observations(
+        start_datetime=start_dt, end_datetime=end_dt
+    )
     assert len(loaded) == 6
 
 
@@ -229,14 +234,24 @@ def test_save_satellite_positions(temp_db, sample_epoch_observations):
     temp_db.save_epoch_observations([sample_epoch_observations])
 
     positions = {
-        "G01": {"x": 1234567.89, "y": 2345678.90, "z": 3456789.01, "clock_bias": 0.000123},
-        "E05": {"x": 9876543.21, "y": 8765432.10, "z": 7654321.09, "clock_bias": -0.000456},
+        "G01": {
+            "x": 1234567.89,
+            "y": 2345678.90,
+            "z": 3456789.01,
+            "clock_bias": 0.000123,
+        },
+        "E05": {
+            "x": 9876543.21,
+            "y": 8765432.10,
+            "z": 7654321.09,
+            "clock_bias": -0.000456,
+        },
     }
 
     temp_db.save_satellite_positions(positions, sample_epoch_observations.datetime)
 
     stats = temp_db.get_statistics()
-    assert stats['num_satellite_positions'] == 2
+    assert stats["num_satellite_positions"] == 2
 
 
 def test_save_spp_solution(temp_db, sample_epoch_observations):
@@ -254,7 +269,7 @@ def test_save_spp_solution(temp_db, sample_epoch_observations):
     temp_db.save_spp_solution(solution_data, sample_epoch_observations.datetime)
 
     stats = temp_db.get_statistics()
-    assert stats['num_spp_solutions'] == 1
+    assert stats["num_spp_solutions"] == 1
 
 
 def test_update_existing_epoch(temp_db, sample_epoch_observations):
@@ -262,8 +277,8 @@ def test_update_existing_epoch(temp_db, sample_epoch_observations):
     # Save first version
     temp_db.save_epoch_observations([sample_epoch_observations])
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 1
-    assert stats['num_satellites'] == 2
+    assert stats["num_epochs"] == 1
+    assert stats["num_satellites"] == 2
 
     # Create a modified version with different data
     modified_epoch = EpochObservations(
@@ -292,8 +307,8 @@ def test_update_existing_epoch(temp_db, sample_epoch_observations):
 
     # Should still have only 1 epoch, but with updated data
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 1
-    assert stats['num_satellites'] == 1  # Only 1 GPS satellite now
+    assert stats["num_epochs"] == 1
+    assert stats["num_satellites"] == 1  # Only 1 GPS satellite now
 
     # Verify the data is updated
     loaded_epochs = temp_db.load_epoch_observations()
@@ -306,9 +321,9 @@ def test_database_statistics(temp_db):
     """Test getting database statistics."""
     # Empty database
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 0
-    assert 'first_epoch' not in stats
-    assert 'last_epoch' not in stats
+    assert stats["num_epochs"] == 0
+    assert "first_epoch" not in stats
+    assert "last_epoch" not in stats
 
     # Add some data
     epochs = []
@@ -343,27 +358,27 @@ def test_database_statistics(temp_db):
     temp_db.save_epoch_observations(epochs)
 
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 3
-    assert stats['num_satellites'] == 3
-    assert stats['num_signals'] == 3
-    assert stats['num_ambiguities'] == 3
-    assert 'first_epoch' in stats
-    assert 'last_epoch' in stats
-    assert stats['time_span'] == 2.0  # 2 seconds
+    assert stats["num_epochs"] == 3
+    assert stats["num_satellites"] == 3
+    assert stats["num_signals"] == 3
+    assert stats["num_ambiguities"] == 3
+    assert "first_epoch" in stats
+    assert "last_epoch" in stats
+    assert stats["time_span"] == 2.0  # 2 seconds
 
 
 def test_clear_database(temp_db, sample_epoch_observations):
     """Test clearing all data from database."""
     temp_db.save_epoch_observations([sample_epoch_observations])
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 1
+    assert stats["num_epochs"] == 1
 
     temp_db.clear_database()
 
     stats = temp_db.get_statistics()
-    assert stats['num_epochs'] == 0
-    assert stats['num_satellites'] == 0
-    assert stats['num_signals'] == 0
+    assert stats["num_epochs"] == 0
+    assert stats["num_satellites"] == 0
+    assert stats["num_signals"] == 0
 
 
 def test_empty_satellite_lists(temp_db):
@@ -427,7 +442,7 @@ def test_spp_solution_without_residuals(temp_db, sample_epoch_observations):
     temp_db.save_spp_solution(solution_data, sample_epoch_observations.datetime)
 
     stats = temp_db.get_statistics()
-    assert stats['num_spp_solutions'] == 1
+    assert stats["num_spp_solutions"] == 1
 
 
 def test_save_satellite_positions_missing_epoch(temp_db):
