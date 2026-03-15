@@ -27,6 +27,7 @@ from app.gnss.satellite_signals import (
     parse_rinex_observation_file,
 )
 from app.gnss.ionosphere import KlobucharManager, KlobucharModel
+from app.gnss.database import GnssDatabase
 
 logger = getLogger(__name__)
 
@@ -327,6 +328,12 @@ def main() -> int:
         default=0,
         help="Limit number of epochs processed (0 = all)",
     )
+    parser.add_argument(
+        "--database",
+        type=str,
+        default=None,
+        help="Path to SQLite database file to save observations and solutions",
+    )
 
     args = parser.parse_args()
     basicConfig(level=INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -373,6 +380,24 @@ def main() -> int:
             sol.clock_bias_m,
             sol.num_sats,
         )
+
+    if args.database:
+        db = GnssDatabase(args.database)
+        db.save_epoch_observations(epochs)
+        for sol in solutions:
+            db.save_spp_solution(
+                {
+                    "position_ecef": sol.position_ecef.tolist(),
+                    "position_llh": sol.position_llh.tolist(),
+                    "clock_bias_m": sol.clock_bias_m,
+                    "num_satellites": sol.num_sats,
+                    "residuals": sol.residuals.tolist()
+                    if sol.residuals.size > 0
+                    else None,
+                },
+                sol.datetime,
+            )
+        logger.info("Saved observations and solutions to %s", args.database)
 
     return 0
 
