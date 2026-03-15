@@ -166,6 +166,17 @@ def build_observation_matrix(
     elev_mask_rad = np.radians(elevation_mask_deg)
     H_rows = []
     v_rows = []
+    receiver_llh = ecef_to_llh(receiver_pos)
+    enu_rotation = ecef_to_enu_matrix(receiver_llh[0], receiver_llh[1])
+    receiver_llh_rad = np.array(
+        [
+            np.radians(receiver_llh[0]),
+            np.radians(receiver_llh[1]),
+            receiver_llh[2],
+        ]
+    )
+    iono_model = ionosphere_manager.get_model_for_time(epoch_dt)
+
     for sat_id, sat_pos, dtsv, sat_obs in measurements:
         pr = sat_obs.signals["L1"].pseudorange
         rho = np.linalg.norm(sat_pos - receiver_pos)
@@ -179,11 +190,7 @@ def build_observation_matrix(
         if rho <= 0 or not np.isfinite(rho):
             continue
 
-        receiver_llh = ecef_to_llh(receiver_pos)
-
-        enu = ecef_to_enu_matrix(receiver_llh[0], receiver_llh[1]) @ (
-            sat_corr - receiver_pos
-        )
+        enu = enu_rotation @ (sat_corr - receiver_pos)
         east, north, up = enu
         horiz = np.hypot(east, north)
         elev = np.arctan2(up, horiz)
@@ -199,16 +206,8 @@ def build_observation_matrix(
             tropo = 0.0
 
         iono = 0.0
-        iono_model = ionosphere_manager.get_model_for_time(epoch_dt)
         if iono_model is not None:
             if elev > 0 and iono_model is not None:
-                receiver_llh_rad = np.array(
-                    [
-                        np.radians(receiver_llh[0]),
-                        np.radians(receiver_llh[1]),
-                        receiver_llh[2],
-                    ]
-                )
                 iono_val = iono_model.calculate_delay(
                     epoch_dt, receiver_llh_rad, az, elev
                 )
