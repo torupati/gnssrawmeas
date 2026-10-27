@@ -159,9 +159,99 @@ precision, while the sidelobe depth and count grow:
 
 **Note on AltBOC.**
 Galileo E5 uses **AltBOC(15,10)**, which is not a simple binary BOC.
-AltBOC is a constant-envelope 8-PSK composite signal that simultaneously carries two
-sub-bands — E5a (1176.45 MHz) and E5b (1207.14 MHz) — in phase quadrature, achieving a
-combined double-sided bandwidth of $\approx 51\,\text{MHz}$.
-The figure shows plain BOC(15,10) as a single-component approximation of its spectral envelope;
-the true AltBOC differs in its inter-band sidelobe structure and requires a dedicated
-AltBOC receiver to exploit the full wideband correlation peak.
+The figure above shows plain BOC(15,10) only as a rough stand-in for its spectral envelope;
+the actual signal is treated in the next section.
+
+## Galileo E5 AltBOC(15,10)
+
+### Signal structure
+
+Galileo E5 transmits two independent signals, E5a (1176.45 MHz) and E5b (1207.14 MHz),
+from a single carrier at $f_{E5} = 1191.795\,\text{MHz}$.
+Each sideband carries a data (I) and a pilot (Q) channel, all four spread by 10.23 Mcps codes.
+**Alternative BOC** shifts E5a down and E5b up by $f_s = 15.345\,\text{MHz}$ with a *complex*
+subcarrier, unlike plain BOC whose real subcarrier mirrors the same code on both sides.
+
+Multiplexing four codes with a linear sum would give a non-constant envelope, which is
+distorted by the satellite's saturated power amplifier.
+The Galileo OS SIS ICD therefore adds four *product signals*
+$\bar e_{a,I} = e_{a,Q}e_{b,I}e_{b,Q}$, $\bar e_{a,Q} = e_{a,I}e_{b,I}e_{b,Q}$,
+$\bar e_{b,I} = e_{b,Q}e_{a,I}e_{a,Q}$, $\bar e_{b,Q} = e_{b,I}e_{a,I}e_{a,Q}$:
+
+$$
+\begin{aligned}
+s_{E5}(t) = \frac{1}{2\sqrt2}\Big[
+&(e_{a,I} + j e_{a,Q})\big(sc_S(t) - j\,sc_S(t - T_s/4)\big)
++ (e_{b,I} + j e_{b,Q})\big(sc_S(t) + j\,sc_S(t - T_s/4)\big) \\
++\,&(\bar e_{a,I} + j \bar e_{a,Q})\big(sc_P(t) - j\,sc_P(t - T_s/4)\big)
++ (\bar e_{b,I} + j \bar e_{b,Q})\big(sc_P(t) + j\,sc_P(t - T_s/4)\big)\Big]
+\end{aligned}
+$$
+
+with $T_s = 1/f_s$ and the four-level single and product subcarriers
+
+$$
+\begin{aligned}
+sc_S(t) &= \tfrac{\sqrt2}{4}\,\mathrm{sgn}\cos(2\pi f_s t - \tfrac{\pi}{4})
++ \tfrac12\,\mathrm{sgn}\cos(2\pi f_s t)
++ \tfrac{\sqrt2}{4}\,\mathrm{sgn}\cos(2\pi f_s t + \tfrac{\pi}{4}) \\
+sc_P(t) &= -\tfrac{\sqrt2}{4}\,\mathrm{sgn}\cos(2\pi f_s t - \tfrac{\pi}{4})
++ \tfrac12\,\mathrm{sgn}\cos(2\pi f_s t)
+- \tfrac{\sqrt2}{4}\,\mathrm{sgn}\cos(2\pi f_s t + \tfrac{\pi}{4})
+\end{aligned}
+$$
+
+$(sc_S - j\,sc_S(t-T_s/4))$ is a staircase approximation of $e^{-j2\pi f_s t}$, so the first term
+moves E5a to $-f_s$ and the second moves E5b to $+f_s$.
+For every combination of the four codes, $s_{E5}(t)$ takes one of eight phases
+$k\pi/4$ with $|s_{E5}| = 1$: AltBOC is a constant-envelope **8-PSK** signal whose phase
+changes every $T_s/8$ (12 phase steps per chip, since $2f_s/f_c = 3$).
+
+### Power spectral density
+
+For odd $2f_s/f_c$, the PSD normalised to unit power is (Rebeyrol et al., ION NTM 2005,
+divided by 8 for unit power)
+
+$$
+G_\text{AltBOC}(f) = \frac{f_c}{2(\pi f)^2}\,
+\frac{\cos^2(\pi f/f_c)}{\cos^2\!\big(\pi f/(2f_s)\big)}
+\Big[\cos^2\!\big(\tfrac{\pi f}{2f_s}\big) - \cos\!\big(\tfrac{\pi f}{2f_s}\big)
+- 2\cos\!\big(\tfrac{\pi f}{2f_s}\big)\cos\!\big(\tfrac{\pi f}{4f_s}\big) + 2\Big]
+$$
+
+The poles of $1/\cos^2(\pi f/(2f_s))$ at $f = \pm f_s, \pm 3f_s, \dots$ are removable:
+$\cos(\pi f/f_c)$ vanishes at the same frequencies because $f_s = 1.5f_c$.
+
+![Galileo E5 AltBOC(15,10) PSD and ACF](./figures/galileo_altboc_psd_acf.png)
+
+The figure is produced by `misc/psd/plot_altboc.py`, which also simulates $s_{E5}(t)$ from the
+ICD definition above with random codes.
+The simulated envelope is constant ($|s| = 1.000000$), and its Welch PSD (gray) matches the
+closed form to $0.0 \pm 0.2\,\text{dB}$ across $\pm 45\,\text{MHz}$.
+
+**Left — PSD.** All curves have unit total power, so levels are directly comparable.
+
+- The two main lobes are centred on E5a ($-15.345\,\text{MHz}$) and E5b ($+15.345\,\text{MHz}$),
+  each $2f_c = 20.46\,\text{MHz}$ wide between nulls, i.e. two BPSK(10) spectra side by side.
+  The Galileo transmit band of $51.15\,\text{MHz}$ holds about 77 % of the power.
+- Compared with BOC(15,10) at the same power, AltBOC has **about 4 dB less power near DC**
+  ($-23.9$ vs $-19.6\,\text{dB/MHz}$) and lacks the BOC side lobes around $\pm 28$ and
+  $\pm 34\,\text{MHz}$. The product signals that keep the envelope constant take
+  $1 - \cos^2(\pi/8) \approx 14.6\,\%$ of the power (the AltBOC multiplexing efficiency is
+  85.4 %); in the simulation, 93 % of that loss lies beyond $\pm 40\,\text{MHz}$.
+- Unlike even-$N$ BOC, there is **no null at $f = 0$**.
+
+**Right — ACF.** Two ways of processing the same signal:
+
+- **Full-band (purple).** A receiver with $\geq 51\,\text{MHz}$ front-end bandwidth correlates
+  against the complete 8-PSK replica. The central peak has width $\approx T_c/3$, almost
+  identical to BOC(15,10), with the deepest sidelobe of $-0.67$ at $\tau = \pm T_c/3$.
+  The very wide signal bandwidth gives excellent code-ranging precision and multipath
+  resistance, but also BOC-type false-lock ambiguity.
+- **Single sideband (red).** A receiver that tracks only E5a correlates against
+  $(e_{a,I} + j e_{a,Q})\,e^{-j2\pi f_s t}$, i.e. a BPSK(10) replica at $-f_s$.
+  The correlation is a plain BPSK(10) triangle of half-width $T_c$, free of
+  sidelobes, but its peak is only $0.64$ of the full-band peak ($\approx -3.9\,\text{dB}$)
+  because the other sideband and the product signals are discarded.
+  Most mass-market dual-frequency receivers process E5a (and sometimes E5b) this way,
+  sharing the L5 RF chain with GPS.
