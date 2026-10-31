@@ -11,8 +11,11 @@ def boc_psd(freq: np.ndarray, m: int, n: int, f0: float = 1.023) -> np.ndarray:
     """
     fs = m * f0  # subcarrier frequency (MHz)
     fc = n * f0  # code chip rate (MHz)
+    if m <= 0 or n <= 0:
+        raise ValueError("m and n must be positive integers")
+    if (2 * m) % n != 0:
+        raise ValueError(f"Invalid BOC({m},{n}): 2*m/n must be an integer")
     N = (2 * m) // n
-
     eps = 1e-15
     f_safe = np.where(np.abs(freq) < eps, eps, freq)
 
