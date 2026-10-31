@@ -45,3 +45,27 @@ def ecef_to_enu_matrix(lat_deg: float, lon_deg: float) -> np.ndarray:
             [cos_lat * cos_lon, cos_lat * sin_lon, sin_lat],
         ]
     )
+
+
+def llh_to_ecef(llh: np.ndarray) -> np.ndarray:
+    """Convert geodetic [lat_deg, lon_deg, h_m] to ECEF (m)."""
+    lat = np.radians(llh[0])
+    lon = np.radians(llh[1])
+    h = llh[2]
+    sin_lat = np.sin(lat)
+    N = WGS84_A / np.sqrt(1 - WGS84_E2 * sin_lat**2)
+    return np.array(
+        [
+            (N + h) * np.cos(lat) * np.cos(lon),
+            (N + h) * np.cos(lat) * np.sin(lon),
+            (N * (1 - WGS84_E2) + h) * sin_lat,
+        ]
+    )
+
+
+def radii_of_curvature(lat_rad: float) -> tuple[float, float]:
+    """Meridian (M) and prime vertical (N) radii of curvature (m) at a geodetic latitude."""
+    w2 = 1 - WGS84_E2 * np.sin(lat_rad) ** 2
+    M = WGS84_A * (1 - WGS84_E2) / w2**1.5
+    N = WGS84_A / np.sqrt(w2)
+    return float(M), float(N)
